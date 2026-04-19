@@ -1,6 +1,6 @@
 # Vertex Veil Intent
 
-> Build a Track 3 hackathon submission that proves leaderless, privacy-preserving agent coordination on Tashi by combining Vertex/FoxMQ consensus with Noir-based intent validation.
+> Build a Track 3 hackathon submission that proves leaderless, privacy-preserving agent coordination on Tashi by combining Vertex consensus with Noir-based intent validation.
 
 Status: draft
 Last updated: 2026-04-19
@@ -30,7 +30,7 @@ The initial v1 scenario is private compute task matching:
 This project is shaped by two concrete inputs:
 
 - `references/vertex-swarm-challenge/track3.md`: the hackathon requires agent discovery, leaderless agreement, execution, and a verifiable record of who did what and when.
-- `references/vertex-hackathon-guide/README.md`: FoxMQ is the low-friction path for decentralized messaging, while Vertex remains the underlying consensus primitive for deterministic ordering and resilience.
+- `references/vertex-hackathon-guide/README.md`: FoxMQ is the low-friction path for decentralized messaging, while Vertex remains the underlying consensus primitive for deterministic ordering and resilience. We favor using Vertex and building upon our experience implementing `references/warmup-vertex-rust/` for the hackathon warmup challenge.
 
 For the hackathon submission, the demo must visibly satisfy these judging dimensions:
 
