@@ -45,7 +45,6 @@ This context drives the scope of `v1`, but it is not the project's core identity
 - Use real Noir proofs in each agent so proposed outcomes can be validated against private constraints locally.
 - Use Vertex directly from Rust as the primary coordination transport and ordering substrate.
 - Produce a public coordination record and verifier report for every run.
-- Provide a reusable library plus runnable CLI agents, not just a one-off demo script.
 
 :::
 
@@ -78,7 +77,7 @@ The first delivery slice is a compute-task matching protocol with these boundari
 
 `ZK_DEV` refers to agents offering zero-knowledge circuit engineering or proof-workflow services. It does not refer to the protocol outsourcing its own proof generation or verification.
 
-`v1` is allowed to use only a subset of illustrative capability tags in the first demo run, but the protocol shape should support custom coarse capability labels and leave room for richer future provider attributes.
+`v1` is allowed to use only a subset of illustrative capability tags in the first demo run.
 
 :::
 
@@ -223,6 +222,5 @@ The coordination transport for `v1` is Vertex directly. FoxMQ is not a primary r
 - Canonical definition of stable public key order
 - Whether non-winning providers emit explicit no-objection attestations in `v1`
 - Exact capability encoding shared between Rust and Noir
-- How future attributes like latency, storage, PIR, and richer service qualities enter later schema versions
 
 :::
