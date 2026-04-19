@@ -1,130 +1,178 @@
 # Vertex Veil Intent
 
-> Build a Track 3 hackathon submission that proves leaderless, privacy-preserving agent coordination on Tashi by combining Vertex consensus with Noir-based intent validation.
+> Enable leaderless agents to coordinate on private intent and produce an auditable Proof of Coordination without relying on a central orchestrator.
 
 Status: draft
 Last updated: 2026-04-19
 
 ## Vision
 
-`vertex-veil/` is the execution surface for a fresh Praxis-powered Intent-Driven Development project based on the Secured Intention Coordination seed bundle in `vertex-swarm.praxis/pages/seed___*.md`.
+Vertex Veil is a system for leaderless coordination over private intent.
 
-The project goal is to demonstrate that a swarm of at least three agents can negotiate, commit, execute, and verify a shared outcome without a master orchestrator and without exposing private intent data in plaintext. This directly targets Vertex Swarm Challenge 2026 Track 3, which requires a leaderless agent coordination layer with a full negotiate -> commit -> execute -> verify loop.
+Its purpose is to let autonomous agents reach a valid shared outcome without revealing sensitive constraints in plaintext and without deferring trust to a master orchestrator. The project combines two complementary guarantees:
 
-The thesis we are carrying forward from the seed is:
+- Vertex provides decentralized ordering, finality, and resilient coordination between peers.
+- Noir provides private constraint validation with proofs that can be checked from the public coordination record.
 
-- Tashi/Vertex provides leaderless ordering, finality, and resilient peer-to-peer coordination.
-- Noir-based zero-knowledge proofs provide intent confidentiality and verifiable constraint satisfaction.
-- Together they enable private coordination correctness without falling back to a centralized orchestrator.
+The project is successful when agents can coordinate on a real shared decision, publish only the public information the protocol requires, and leave behind an auditable Proof of Coordination that a third party can verify independently.
 
-The initial v1 scenario is private compute task matching:
+## Current Delivery Context
 
-- One requester agent publishes a private budget and private capability requirement via a commitment.
-- Two or more provider agents publish private reservation prices with public capability tags.
-- A deterministic proposer suggests a match.
-- Each participating agent proves the proposed match satisfies its committed constraints.
-- The swarm finalizes a public Proof of Coordination that is auditable without revealing raw private intent fields.
+The current milestone is shaped by the Vertex Swarm Challenge 2026 Track 3 constraints.
 
-## Why This Project
+That context matters because it gives the first implementation a sharp target:
 
-This project is shaped by two concrete inputs:
+- prove leaderless multi-agent coordination
+- show deterministic resolution without a central orchestrator
+- handle at least one adversarial or invalid behavior path visibly
+- leave behind a clear public record that demonstrates correctness, resilience, and auditability
 
-- `references/vertex-swarm-challenge/track3.md`: the hackathon requires agent discovery, leaderless agreement, execution, and a verifiable record of who did what and when.
-- `references/vertex-hackathon-guide/README.md`: FoxMQ is the low-friction path for decentralized messaging, while Vertex remains the underlying consensus primitive for deterministic ordering and resilience. We favor using Vertex and building upon our experience implementing `references/warmup-vertex-rust/` for the hackathon warmup challenge.
+This context drives the scope of `v1`, but it is not the project's core identity.
 
-For the hackathon submission, the demo must visibly satisfy these judging dimensions:
+## Responsibilities
 
-- Coordination correctness: no double assignment and deterministic resolution from a shared public record.
-- Resilience: the swarm continues or fails cleanly when agents drop or messages are delayed.
-- Auditability: a verifier can validate the coordination record independently.
-- Security posture: replay resistance, invalid proof rejection, and no plaintext intent leakage.
-- Developer clarity: the repo must be runnable and the demo flow easy to follow.
-
-## Architecture Overview
-
-```text
-private intents
-    |
-    v
-commitments + round binding
-    |
-    v
-FoxMQ / Vertex ordered coordination log
-    |
-    +--> deterministic proposer selects candidate match
-    |
-    +--> agents generate Noir proofs against proposed match
-    |
-    +--> valid proofs + signatures finalize Proof of Coordination
-    |
-    v
-third-party verifier checks public record without private inputs
-```
-
-Working architectural boundaries, inherited from the seed:
-
-- Tashi owns message ordering, finality, BFT coordination, and peer-to-peer transport semantics.
-- Noir owns commitment validation, round binding, and proof of match validity against private constraints.
-- Application code owns the intent schema, proposer rotation, round lifecycle, and demo orchestration.
-
-Current v1 architectural lean:
-
-- Use FoxMQ for the coordination message surface because it is the fastest path to a runnable Track 3 demo.
-- Keep matching computation off-circuit and use a propose-and-verify pattern to reduce proving complexity.
-- Treat the public coordination record as the canonical artifact for auditability.
-
-## Initial Scope
-
-The first implementation pass should establish these foundations:
-
-- Intent schema for requester and provider roles
-- Commitment function with round-number binding
-- Deterministic proposer and match predicate
-- Noir circuits that verify committed intents against a proposed match
-- Agent runtime skeleton that can commit, observe, prove, sign, and react to finality
-- FoxMQ/Vertex integration for ordered coordination messages
-- Standalone verifier for the public coordination record
-- End-to-end demo command for the happy path
+- Define a coordination protocol where agents commit to private intent and participate in public consensus without exposing sensitive fields.
+- Use real Noir proofs in each agent so proposed outcomes can be validated against private constraints locally.
+- Use Vertex directly from Rust as the primary coordination transport and ordering substrate.
+- Produce a public coordination record and verifier report for every run.
+- Provide a reusable library plus runnable CLI agents, not just a one-off demo script.
 
 ## Non-Goals
 
-- Network-layer anonymity or metadata privacy
-- Arc or blockchain settlement integration
-- General-purpose intent language design
-- Production-grade proving performance optimization
-- Autonomous agent intelligence beyond scripted coordination behavior
-- Broad multi-scenario support before the v1 compute-matching demo works
+- Full privacy for all public capability information in `v1`
+- Economic optimality or market-fairness claims beyond deterministic validity
+- Centralized proving helpers or mock-proof substitutes as the main architecture
+- Blockchain settlement, token economics, or Arc integration
+- Production-grade proving optimization before correctness is established
+- A fully general marketplace schema for every future provider attribute
+- Real downstream service execution for PIR, storage, or inference in the first delivery slice
 
-## Constraints
+## V1 Scope
 
-- The repo starts from an empty project area and should stay lightweight until the core intent is validated.
-- The submission must remain hackathon-scoped and runnable on a laptop.
-- The minimum credible demo is at least three agents completing a full coordination loop.
-- No plaintext private intent fields should appear in coordination messages.
-- Proofs must be bound to the round number to make replay across rounds invalid by construction.
-- The coordination outcome must be independently verifiable from the public record alone.
+The first delivery slice is a compute-task matching protocol with these boundaries:
+
+- Roles: one requester and one or more providers
+- Primary validated topology: runtime-configurable system with a 4-node baseline of 1 requester plus 3 providers
+- Matching model: requester publishes a coarse public capability need, providers publish public capability claims, and price constraints remain private
+- Capability surface: `GPU`, `CPU`, `LLM`, and `ZK` as the initial public tag set
+- Execution model: the matched provider emits a signed completion receipt and the requester acknowledges it
+- Round model: fallback rounds are required when proposals or proofs fail
+
+`v1` is allowed to use only a subset of the capability tags in the first demo run, but the shape should leave room for richer future provider attributes.
+
+## Core Model
+
+### Roles
+
+- **Requester**: owns a task, a coarse public required capability tag, and private economic or policy constraints
+- **Provider**: advertises public capability claims and holds private reservation constraints
+- **Proposer**: derives a candidate match from public information and the current round state
+- **Verifier**: reads the public record and validates that the finalized coordination outcome is structurally sound
+
+### Public vs Private
+
+Public data in `v1`:
+
+- agent identity or stable public key
+- round number
+- requester coarse required capability tag
+- provider capability claims
+- proposal metadata
+- proof artifacts, signatures, and execution receipts
+
+Private data in `v1`:
+
+- requester budget and finer preferences
+- provider reservation price and finer constraints
+- private witness material required to generate Noir proofs
+
+### Match Rule
+
+`v1` does not attempt to prove optimal market clearing. It proves valid private coordination.
+
+- Candidate formation uses public compatibility signals.
+- Agents validate candidate outcomes against their private constraints locally.
+- When more than one feasible provider exists, the deterministic winner is selected by stable public key order.
+- Any invalid proposal or invalid proof advances the protocol into a fallback round with the next proposer.
+
+## Structure
+
+```text
+private requester/provider intent
+            |
+            v
+commitment + round binding + public capability claims
+            |
+            v
+Vertex-ordered coordination log
+            |
+            +--> proposer derives candidate match from public state
+            |
+            +--> each relevant agent proves local validity with Noir
+            |
+            +--> proofs and signatures finalize Proof of Coordination
+            |
+            +--> matched provider publishes signed completion receipt
+            |
+            v
+verifier checks coordination log and reports validity
+```
+
+## Implementation Shape
+
+The project should be built as a hybrid Rust system:
+
+- a reusable library containing protocol types, round logic, commitment rules, verifier logic, and shared coordination behavior
+- CLI agents that run requester and provider processes against Vertex
+- Noir circuits that each agent can invoke locally to prove match validity against private constraints
+
+The coordination transport for `v1` is Vertex directly. FoxMQ is not a primary requirement for the first implementation path.
+
+## Coordination Flow
+
+1. Agents start with private intents and stable identities.
+2. Each agent publishes a commitment and the public capability information required for candidate formation.
+3. Vertex finalizes the ordered round state.
+4. The current proposer derives a candidate match from public state.
+5. Relevant agents generate real Noir proofs locally and publish proof artifacts plus signatures.
+6. If proofs and signatures validate, the match becomes the Proof of Coordination.
+7. The matched provider publishes a signed completion receipt and the requester acknowledges it.
+8. A verifier reads the public record and produces a report.
+9. If a proposal or proof fails, the system advances deterministically into a fallback round.
+
+## Examples
+
+### Happy path
+
+- Requester publishes public need `ZK` with private budget.
+- Three providers publish capability claims; two claim `ZK`, one claims `CPU`.
+- The proposer selects a `ZK`-capable candidate by stable public key order.
+- The requester and selected provider each prove the candidate satisfies their private constraints.
+- Vertex finalizes the proofs and signatures.
+- The winning provider emits a signed completion receipt.
+- The verifier report marks the coordination log valid.
+
+### Invalid proof path
+
+- A provider publishes a proof artifact that does not verify against the public round inputs.
+- The proof is rejected visibly in the coordination record.
+- The current round does not finalize.
+- The protocol advances to the next proposer and retries deterministically.
 
 ## Success Criteria
 
-- At least three agents complete discover -> commit -> match -> execute -> verify in one runnable demo.
-- One malicious behavior path is demonstrably rejected by the system.
-- One dropout path is handled by either clean completion or explicit abort with a verifiable reason.
-- A third-party verifier confirms the public coordination record without access to private intents.
-- The full demo completes in under 10 seconds on a laptop, or any gap is explicitly documented.
+- Agents coordinate without exposing private price constraints in plaintext.
+- The first serious end-to-end run works with a validated 4-node baseline and a runtime-configurable topology.
+- Real Noir proofs are generated and verified as part of the coordination flow.
+- Invalid-proof rejection is visible in the public record.
+- Every run produces a coordination log and verifier report.
+- The system remains understandable as a standalone project and not only as an event artifact.
 
-## Source Seeds
+## Open Decisions
 
-- `vertex-swarm.praxis/pages/seed___intent.md`
-- `vertex-swarm.praxis/pages/seed___glossary.md`
-- `vertex-swarm.praxis/pages/seed___architecture.md`
-- `vertex-swarm.praxis/pages/seed___scenario.md`
-- `vertex-swarm.praxis/pages/seed___decomposition.md`
-- `references/vertex-swarm-challenge/details.md`
-- `references/vertex-swarm-challenge/track3.md`
-- `references/vertex-hackathon-guide/README.md`
-
-## Next IDD Steps
-
-- Use `/intent-interview` or direct editing to refine the root intent into explicit project decisions.
-- Split the seed decomposition into phased implementation work once stack choices are pinned.
-- Add project-local guidance in `vertex-veil/AGENTS.md` when the implementation conventions become clear.
+- Exact commitment construction shared between Rust and Noir
+- Exact proof artifact format carried in coordination messages
+- Canonical definition of stable public key order
+- Whether non-winning providers emit explicit no-objection attestations in `v1`
+- Exact capability encoding shared between Rust and Noir
+- How future attributes like latency, storage, PIR, and richer service qualities enter later schema versions
