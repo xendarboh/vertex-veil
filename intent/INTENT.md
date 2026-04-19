@@ -45,7 +45,7 @@ This context drives the scope of `v1`, but it is not the project's core identity
 - Blockchain settlement, token economics, or Arc integration
 - Production-grade proving optimization before correctness is established
 - A fully general marketplace schema for every future provider attribute
-- Real downstream service execution for PIR, storage, or inference in the first delivery slice
+- Real downstream provider task execution such as compute jobs, model inference, or circuit-development work in the first delivery slice
 
 ## V1 Scope
 
@@ -54,9 +54,11 @@ The first delivery slice is a compute-task matching protocol with these boundari
 - Roles: one requester and one or more providers
 - Primary validated topology: runtime-configurable system with a 4-node baseline of 1 requester plus 3 providers
 - Matching model: requester publishes a coarse public capability need, providers publish public capability claims, and price constraints remain private
-- Capability surface: `GPU`, `CPU`, `LLM`, and `ZK` as the initial public tag set
+- Capability surface: `GPU`, `CPU`, `LLM`, and `ZK_DEV` as the initial public tag set
 - Execution model: the matched provider emits a signed completion receipt and the requester acknowledges it
 - Round model: fallback rounds are required when proposals or proofs fail
+
+`ZK_DEV` refers to agents offering zero-knowledge circuit engineering or proof-workflow services. It does not refer to the protocol outsourcing its own proof generation or verification.
 
 `v1` is allowed to use only a subset of the capability tags in the first demo run, but the shape should leave room for richer future provider attributes.
 
@@ -144,9 +146,9 @@ The coordination transport for `v1` is Vertex directly. FoxMQ is not a primary r
 
 ### Happy path
 
-- Requester publishes public need `ZK` with private budget.
-- Three providers publish capability claims; two claim `ZK`, one claims `CPU`.
-- The proposer selects a `ZK`-capable candidate by stable public key order.
+- Requester publishes public need `GPU` with private budget.
+- Three providers publish capability claims; two claim `GPU`, one claims `CPU`.
+- The proposer selects a `GPU`-capable candidate by stable public key order.
 - The requester and selected provider each prove the candidate satisfies their private constraints.
 - Vertex finalizes the proofs and signatures.
 - The winning provider emits a signed completion receipt.
