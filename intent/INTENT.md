@@ -5,6 +5,8 @@
 Status: draft
 Last updated: 2026-04-19
 
+::: locked {reason="core project identity"}
+
 ## Vision
 
 Vertex Veil is a system for leaderless coordination over private intent.
@@ -15,6 +17,10 @@ Its purpose is to let autonomous agents reach a valid shared outcome without rev
 - Noir provides private constraint validation with proofs that can be checked from the public coordination record.
 
 The project is successful when agents can coordinate on a real shared decision, publish only the public information the protocol requires, and leave behind an auditable Proof of Coordination that a third party can verify independently.
+
+:::
+
+::: reviewed {by="Xen" date="2026-04-19"}
 
 ## Current Delivery Context
 
@@ -29,6 +35,10 @@ That context matters because it gives the first implementation a sharp target:
 
 This context drives the scope of `v1`, but it is not the project's core identity.
 
+:::
+
+::: locked {reason="core project responsibilities"}
+
 ## Responsibilities
 
 - Define a coordination protocol where agents commit to private intent and participate in public consensus without exposing sensitive fields.
@@ -36,6 +46,10 @@ This context drives the scope of `v1`, but it is not the project's core identity
 - Use Vertex directly from Rust as the primary coordination transport and ordering substrate.
 - Produce a public coordination record and verifier report for every run.
 - Provide a reusable library plus runnable CLI agents, not just a one-off demo script.
+
+:::
+
+::: locked {reason="v1 scope boundaries"}
 
 ## Non-Goals
 
@@ -46,6 +60,10 @@ This context drives the scope of `v1`, but it is not the project's core identity
 - Production-grade proving optimization before correctness is established
 - A fully general marketplace schema for every future provider attribute
 - Real downstream provider task execution such as compute jobs, model inference, or circuit-development work in the first delivery slice
+
+:::
+
+::: locked {reason="initial implementation slice and configurable capability framing"}
 
 ## V1 Scope
 
@@ -61,6 +79,10 @@ The first delivery slice is a compute-task matching protocol with these boundari
 `ZK_DEV` refers to agents offering zero-knowledge circuit engineering or proof-workflow services. It does not refer to the protocol outsourcing its own proof generation or verification.
 
 `v1` is allowed to use only a subset of illustrative capability tags in the first demo run, but the protocol shape should support custom coarse capability labels and leave room for richer future provider attributes.
+
+:::
+
+::: locked {reason="core architecture and protocol semantics"}
 
 ## Core Model
 
@@ -97,6 +119,10 @@ Private data in `v1`:
 - When more than one feasible provider exists, the deterministic winner is selected by stable public key order.
 - Any invalid proposal or invalid proof advances the protocol into a fallback round with the next proposer.
 
+:::
+
+::: reviewed {by="Xen" date="2026-04-19"}
+
 ## Structure
 
 ```text
@@ -120,6 +146,10 @@ Vertex-ordered coordination log
 verifier checks coordination log and reports validity
 ```
 
+:::
+
+::: reviewed {by="Xen" date="2026-04-19"}
+
 ## Implementation Shape
 
 The project should be built as a hybrid Rust system:
@@ -129,6 +159,10 @@ The project should be built as a hybrid Rust system:
 - Noir circuits that each agent can invoke locally to prove match validity against private constraints
 
 The coordination transport for `v1` is Vertex directly. FoxMQ is not a primary requirement for the first implementation path.
+
+:::
+
+::: reviewed {by="Xen" date="2026-04-19"}
 
 ## Coordination Flow
 
@@ -141,6 +175,10 @@ The coordination transport for `v1` is Vertex directly. FoxMQ is not a primary r
 7. The matched provider publishes a signed completion receipt and the requester acknowledges it.
 8. A verifier reads the public record and produces a report.
 9. If a proposal or proof fails, the system advances deterministically into a fallback round.
+
+:::
+
+::: reviewed {by="Xen" date="2026-04-19"}
 
 ## Examples
 
@@ -161,6 +199,10 @@ The coordination transport for `v1` is Vertex directly. FoxMQ is not a primary r
 - The current round does not finalize.
 - The protocol advances to the next proposer and retries deterministically.
 
+:::
+
+::: reviewed {by="Xen" date="2026-04-19"}
+
 ## Success Criteria
 
 - Agents coordinate without exposing private price constraints in plaintext.
@@ -170,6 +212,10 @@ The coordination transport for `v1` is Vertex directly. FoxMQ is not a primary r
 - Every run produces a coordination log and verifier report.
 - The system remains understandable as a standalone project and not only as an event artifact.
 
+:::
+
+::: reviewed {by="Xen" date="2026-04-19"}
+
 ## Open Decisions
 
 - Exact commitment construction shared between Rust and Noir
@@ -178,3 +224,5 @@ The coordination transport for `v1` is Vertex directly. FoxMQ is not a primary r
 - Whether non-winning providers emit explicit no-objection attestations in `v1`
 - Exact capability encoding shared between Rust and Noir
 - How future attributes like latency, storage, PIR, and richer service qualities enter later schema versions
+
+:::
