@@ -73,8 +73,8 @@
 ### 12. Capability surface
 
 - **Question**: What kind of capability tags should the demo use so the scenario feels concrete?
-- **Decision**: Use compute-oriented provider capability tags with an extensible shape. The initial tag set should include `GPU`, `CPU`, `LLM`, and `ZK_DEV`, even if the first demo run uses only a subset.
-- **Rationale**: The user wants a compute marketplace flavor now while keeping a clear path toward richer cryptographic and intelligence service providers later.
+- **Decision**: The protocol should support runtime-configurable coarse capability tags. Compute-oriented tags such as `GPU`, `CPU`, `LLM`, and `ZK_DEV` are illustrative examples for the first presentation layer, not fixed protocol constants.
+- **Rationale**: The user wants the protocol itself to stay general while still using concrete examples that make the first delivery slice easy to explain.
 
 ### 13. Future provider attributes
 

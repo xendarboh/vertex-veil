@@ -54,13 +54,13 @@ The first delivery slice is a compute-task matching protocol with these boundari
 - Roles: one requester and one or more providers
 - Primary validated topology: runtime-configurable system with a 4-node baseline of 1 requester plus 3 providers
 - Matching model: requester publishes a coarse public capability need, providers publish public capability claims, and price constraints remain private
-- Capability surface: `GPU`, `CPU`, `LLM`, and `ZK_DEV` as the initial public tag set
+- Capability surface: runtime-configurable coarse capability tags, with `GPU`, `CPU`, `LLM`, and `ZK_DEV` as illustrative examples for the first delivery context
 - Execution model: the matched provider emits a signed completion receipt and the requester acknowledges it
 - Round model: fallback rounds are required when proposals or proofs fail
 
 `ZK_DEV` refers to agents offering zero-knowledge circuit engineering or proof-workflow services. It does not refer to the protocol outsourcing its own proof generation or verification.
 
-`v1` is allowed to use only a subset of the capability tags in the first demo run, but the shape should leave room for richer future provider attributes.
+`v1` is allowed to use only a subset of illustrative capability tags in the first demo run, but the protocol shape should support custom coarse capability labels and leave room for richer future provider attributes.
 
 ## Core Model
 
