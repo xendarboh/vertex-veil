@@ -44,6 +44,7 @@ This context drives the scope of `v1`, but it is not the project's core identity
 - Define a coordination protocol where agents commit to private intent and participate in public consensus without exposing sensitive fields.
 - Use real Noir proofs in each agent so proposed outcomes can be validated against private constraints locally.
 - Use Vertex directly from Rust as the primary coordination transport and ordering substrate.
+- Complete coordination correctly when up to `f` of `3f+1` nodes are adversarial, silent, or drop mid-round within the validated `v1` baseline.
 - Produce a public coordination record and verifier report for every run.
 
 :::
@@ -74,10 +75,13 @@ The first delivery slice is a compute-task matching protocol with these boundari
 - Capability surface: runtime-configurable coarse capability tags, with `GPU`, `CPU`, `LLM`, and `ZK_DEV` as illustrative examples for the first delivery context
 - Execution model: the matched provider emits a signed completion receipt and the requester acknowledges it
 - Round model: fallback rounds are required when proposals or proofs fail
+- Noir scope: `v1` is satisfied by real per-agent Noir proofs over the committed private constraints needed for the requester and provider acceptance checks; additional circuit complexity is not required unless a private constraint depends on it
 
 `ZK_DEV` refers to agents offering zero-knowledge circuit engineering or proof-workflow services. It does not refer to the protocol outsourcing its own proof generation or verification.
 
 `v1` is allowed to use only a subset of illustrative capability tags in the first demo run.
+
+A staged bring-up is allowed while building `v1`: a minimal viable circuit may prove one structural property end-to-end before the full requester/provider predicate set lands, but `v1` is not complete until the full private constraint predicate set is implemented.
 
 :::
 
@@ -117,6 +121,11 @@ Private data in `v1`:
 - Agents validate candidate outcomes against their private constraints locally.
 - When more than one feasible provider exists, the deterministic winner is selected by stable public key order.
 - Any invalid proposal or invalid proof advances the protocol into a fallback round with the next proposer.
+
+### Invariants
+
+- The public coordination record is sufficient for third-party outcome verification. No private input is required at any point in the verifier path.
+- The match predicate is a single logical function with two implementations: Rust runtime logic and Noir circuit logic. Divergence between them is a correctness bug, not a performance tradeoff.
 
 :::
 
@@ -208,6 +217,9 @@ The coordination transport for `v1` is Vertex directly. FoxMQ is not a primary r
 - The first serious end-to-end run works with a validated 4-node baseline and a runtime-configurable topology.
 - Real Noir proofs are generated and verified as part of the coordination flow.
 - Invalid-proof rejection is visible in the public record.
+- Prior-round proofs cannot be replayed into the active round.
+- No agent key can commit twice in a single round.
+- Coordination completes correctly or aborts verifiably when a node is silent or drops mid-round within the validated `v1` baseline.
 - Every run produces a coordination log and verifier report.
 - The system remains understandable as a standalone project and not only as an event artifact.
 
