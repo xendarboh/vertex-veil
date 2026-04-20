@@ -374,13 +374,13 @@ cargo test && nargo test && cargo run -p vertex-veil-agents -- demo --topology f
 
 ## Risk Mitigation
 
-| Risk | Mitigation | Contingency |
-| --- | --- | --- |
-| Noir proving integration takes longer than expected | Stage Noir bring-up with a minimal viable circuit first, then land the full requester/provider predicate set under parity tests | Keep the minimal-circuit spike only as a build step; `v1` remains incomplete until the full predicate set is present |
-| Rust and Noir predicate logic drift | Treat parity as a structural invariant and maintain shared fixtures across both implementations | Block phase completion until parity failures are resolved |
-| Vertex runtime recovery behavior is harder than expected | Validate the 4-node baseline early and keep fallback logic deterministic in library code | Prioritize invalid-proof, replay, double-commit, silent-node, and drop handling within the validated baseline before broader recovery ambitions |
-| Capability-tag generality expands scope | Treat tags as runtime-configurable coarse labels only | Defer richer attribute matching to a later intent update |
-| Artifact format drifts between runtime and verifier | Define artifact schemas in shared library types first | Block runtime changes until verifier fixtures are updated |
+| Risk                                                     | Mitigation                                                                                                                      | Contingency                                                                                                                                     |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Noir proving integration takes longer than expected      | Stage Noir bring-up with a minimal viable circuit first, then land the full requester/provider predicate set under parity tests | Keep the minimal-circuit spike only as a build step; `v1` remains incomplete until the full predicate set is present                            |
+| Rust and Noir predicate logic drift                      | Treat parity as a structural invariant and maintain shared fixtures across both implementations                                 | Block phase completion until parity failures are resolved                                                                                       |
+| Vertex runtime recovery behavior is harder than expected | Validate the 4-node baseline early and keep fallback logic deterministic in library code                                        | Prioritize invalid-proof, replay, double-commit, silent-node, and drop handling within the validated baseline before broader recovery ambitions |
+| Capability-tag generality expands scope                  | Treat tags as runtime-configurable coarse labels only                                                                           | Defer richer attribute matching to a later intent update                                                                                        |
+| Artifact format drifts between runtime and verifier      | Define artifact schemas in shared library types first                                                                           | Block runtime changes until verifier fixtures are updated                                                                                       |
 
 ## References
 
