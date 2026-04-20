@@ -139,19 +139,8 @@ Implement the commitment model, public/private intent split, capability-tag hand
 ### E2E Gate
 
 ```bash
-cargo test -p vertex-veil-core commitments proposer round_state capability_tags predicate_runtime
+cargo test -p vertex-veil-core -- commitments proposer round_state capability_tags predicate_runtime
 ```
-
-> Implementation note (surfaced 2026-04-20): `cargo test` only accepts a
-> single `TESTNAME` positional; multiple filters must be forwarded to libtest
-> via `--`. The equivalent command that satisfies this gate functionally is:
->
-> ```bash
-> cargo test -p vertex-veil-core -- commitments proposer round_state capability_tags predicate_runtime
-> ```
->
-> Same pattern as the Phase 0 gate; future phases with multi-filter gates
-> should use the `--` form.
 
 ### Acceptance Criteria
 
@@ -222,7 +211,7 @@ Implement the Noir circuits and Rust integration boundaries required for agents 
 ### E2E Gate
 
 ```bash
-nargo test && cargo test -p vertex-veil-core proofs noir_bridge predicate_parity
+nargo test && cargo test -p vertex-veil-core -- proofs noir_bridge predicate_parity
 ```
 
 ### Acceptance Criteria
@@ -295,7 +284,7 @@ Build the CLI agents and Vertex-backed runtime that publish commitments, derive 
 ### E2E Gate
 
 ```bash
-cargo test -p vertex-veil-core verifier runtime_log adversarial && cargo run -p vertex-veil-agents -- demo --topology fixtures/topology-4node.toml --scenario fixtures/replay-doublecommit-drop.toml --artifacts artifacts/phase3 && cargo run -p vertex-veil-agents -- verify --artifacts artifacts/phase3
+cargo test -p vertex-veil-core -- verifier runtime_log adversarial && cargo run -p vertex-veil-agents -- demo --topology fixtures/topology-4node.toml --scenario fixtures/replay-doublecommit-drop.toml --artifacts artifacts/phase3 && cargo run -p vertex-veil-agents -- verify --artifacts artifacts/phase3
 ```
 
 ### Acceptance Criteria
