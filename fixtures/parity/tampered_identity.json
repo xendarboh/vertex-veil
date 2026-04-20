@@ -1,0 +1,20 @@
+{
+  "name": "tampered_identity",
+  "round": 0,
+  "requester": {
+    "role": "requester",
+    "node_id": "1111111111111111111111111111111111111111111111111111111111111111",
+    "round": 0,
+    "required_capability": "GPU"
+  },
+  "provider": {
+    "role": "requester",
+    "node_id": "9999999999999999999999999999999999999999999999999999999999999999",
+    "round": 0,
+    "required_capability": "GPU"
+  },
+  "expected": {
+    "outcome": "reject",
+    "code": "wrong_provider_role"
+  }
+}

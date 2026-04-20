@@ -91,50 +91,50 @@ Implement the commitment model, public/private intent split, capability-tag hand
 
 #### Happy Path
 
-- [ ] Commitment generation is deterministic for the same intent, nonce, and round
-- [ ] Commitment changes when round number changes
-- [ ] Candidate formation finds a feasible provider from public capability claims
-- [ ] Stable public key ordering selects the same winner across repeated runs
-- [ ] Fallback round selection advances to the next proposer deterministically
-- [ ] Runtime-side match predicate accepts a valid requester/provider pair with consistent public metadata
+- [x] Commitment generation is deterministic for the same intent, nonce, and round
+- [x] Commitment changes when round number changes
+- [x] Candidate formation finds a feasible provider from public capability claims
+- [x] Stable public key ordering selects the same winner across repeated runs
+- [x] Fallback round selection advances to the next proposer deterministically
+- [x] Runtime-side match predicate accepts a valid requester/provider pair with consistent public metadata
 
 #### Bad Path
 
-- [ ] Provider with incompatible public capability claim is excluded from candidate formation
-- [ ] Proposal referencing unknown commitment is rejected
-- [ ] Duplicate provider key in ordering input fails deterministically
-- [ ] Missing requester coarse capability tag fails proposal construction
-- [ ] Invalid round transition is rejected by the round-state machine
-- [ ] Same agent key attempting to commit twice in one round is rejected
-- [ ] Prior-round proposal or proof metadata is rejected by round-bound validation
+- [x] Provider with incompatible public capability claim is excluded from candidate formation
+- [x] Proposal referencing unknown commitment is rejected
+- [x] Duplicate provider key in ordering input fails deterministically
+- [x] Missing requester coarse capability tag fails proposal construction
+- [x] Invalid round transition is rejected by the round-state machine
+- [x] Same agent key attempting to commit twice in one round is rejected
+- [x] Prior-round proposal or proof metadata is rejected by round-bound validation
 
 #### Edge Cases
 
-- [ ] No feasible providers returns no proposal without panicking
-- [ ] Multiple equally feasible providers still resolve to one deterministic winner
-- [ ] Runtime-configurable capability tags work with a custom label set beyond the illustrative defaults
-- [ ] Silent provider does not corrupt round-state advancement when the protocol moves to the next proposer
+- [x] No feasible providers returns no proposal without panicking
+- [x] Multiple equally feasible providers still resolve to one deterministic winner
+- [x] Runtime-configurable capability tags work with a custom label set beyond the illustrative defaults
+- [x] Silent provider does not corrupt round-state advancement when the protocol moves to the next proposer
 
 #### Security
 
-- [ ] Round binding prevents commitment reuse across rounds in library validation
-- [ ] Proposal validation rejects tampered public metadata
-- [ ] Double-commit attempt by the same agent key is detected by state logic
-- [ ] Replay attempt using prior-round identifiers is rejected before finalization
+- [x] Round binding prevents commitment reuse across rounds in library validation
+- [x] Proposal validation rejects tampered public metadata
+- [x] Double-commit attempt by the same agent key is detected by state logic
+- [x] Replay attempt using prior-round identifiers is rejected before finalization
 
 #### Data Leak
 
-- [ ] Proposal logs do not print requester budget or provider reservation price
-- [ ] Candidate formation traces include only public claims and identifiers
-- [ ] Commitment helper errors do not expose private witness inputs
-- [ ] Predicate parity fixtures use redacted or synthetic private values in failure output
+- [x] Proposal logs do not print requester budget or provider reservation price
+- [x] Candidate formation traces include only public claims and identifiers
+- [x] Commitment helper errors do not expose private witness inputs
+- [x] Predicate parity fixtures use redacted or synthetic private values in failure output
 
 #### Data Damage
 
-- [ ] Round-state updates remain atomic under proposal rejection paths
-- [ ] Deterministic ordering remains stable after serialization roundtrip
-- [ ] Proposal rejection does not corrupt the active commitment set
-- [ ] Double-commit rejection does not mutate the accepted commitment set incorrectly
+- [x] Round-state updates remain atomic under proposal rejection paths
+- [x] Deterministic ordering remains stable after serialization roundtrip
+- [x] Proposal rejection does not corrupt the active commitment set
+- [x] Double-commit rejection does not mutate the accepted commitment set incorrectly
 
 ### E2E Gate
 
@@ -142,15 +142,26 @@ Implement the commitment model, public/private intent split, capability-tag hand
 cargo test -p vertex-veil-core commitments proposer round_state capability_tags predicate_runtime
 ```
 
+> Implementation note (surfaced 2026-04-20): `cargo test` only accepts a
+> single `TESTNAME` positional; multiple filters must be forwarded to libtest
+> via `--`. The equivalent command that satisfies this gate functionally is:
+>
+> ```bash
+> cargo test -p vertex-veil-core -- commitments proposer round_state capability_tags predicate_runtime
+> ```
+>
+> Same pattern as the Phase 0 gate; future phases with multi-filter gates
+> should use the `--` form.
+
 ### Acceptance Criteria
 
-- [ ] All 6 test categories pass
-- [ ] Commitments and round binding are implemented as shared library logic
-- [ ] Deterministic proposer and stable key winner selection are implemented
-- [ ] Runtime-configurable coarse capability tags are supported
-- [ ] Replay and double-commit rejection are enforced in round-state logic
-- [ ] Runtime-side predicate fixtures exist for Noir parity testing
-- [ ] E2E Gate passes
+- [x] All 6 test categories pass
+- [x] Commitments and round binding are implemented as shared library logic
+- [x] Deterministic proposer and stable key winner selection are implemented
+- [x] Runtime-configurable coarse capability tags are supported
+- [x] Replay and double-commit rejection are enforced in round-state logic
+- [x] Runtime-side predicate fixtures exist for Noir parity testing
+- [x] E2E Gate passes (using the `--` form; see note above)
 
 ---
 

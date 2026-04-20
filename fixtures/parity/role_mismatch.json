@@ -1,0 +1,20 @@
+{
+  "name": "role_mismatch",
+  "round": 0,
+  "requester": {
+    "role": "provider",
+    "node_id": "1111111111111111111111111111111111111111111111111111111111111111",
+    "round": 0,
+    "capability_claims": ["GPU"]
+  },
+  "provider": {
+    "role": "provider",
+    "node_id": "2222222222222222222222222222222222222222222222222222222222222222",
+    "round": 0,
+    "capability_claims": ["GPU"]
+  },
+  "expected": {
+    "outcome": "reject",
+    "code": "wrong_requester_role"
+  }
+}

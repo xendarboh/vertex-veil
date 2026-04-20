@@ -1,0 +1,20 @@
+{
+  "name": "no_match_cpu",
+  "round": 0,
+  "requester": {
+    "role": "requester",
+    "node_id": "1111111111111111111111111111111111111111111111111111111111111111",
+    "round": 0,
+    "required_capability": "GPU"
+  },
+  "provider": {
+    "role": "provider",
+    "node_id": "4444444444444444444444444444444444444444444444444444444444444444",
+    "round": 0,
+    "capability_claims": ["CPU"]
+  },
+  "expected": {
+    "outcome": "reject",
+    "code": "provider_lacks_capability"
+  }
+}

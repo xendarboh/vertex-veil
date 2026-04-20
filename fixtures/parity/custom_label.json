@@ -1,0 +1,19 @@
+{
+  "name": "custom_label",
+  "round": 0,
+  "requester": {
+    "role": "requester",
+    "node_id": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "round": 0,
+    "required_capability": "SPECIAL_ZONE"
+  },
+  "provider": {
+    "role": "provider",
+    "node_id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "round": 0,
+    "capability_claims": ["SPECIAL_ZONE", "LINEAR_ALGEBRA"]
+  },
+  "expected": {
+    "outcome": "accept"
+  }
+}

@@ -1,0 +1,17 @@
+version = 1
+capability_tags = ["SPECIAL_ZONE", "LINEAR_ALGEBRA", "GRAPH_MATCH"]
+
+[[nodes]]
+id = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+role = "requester"
+required_capability = "SPECIAL_ZONE"
+
+[[nodes]]
+id = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+role = "provider"
+capability_claims = ["SPECIAL_ZONE", "LINEAR_ALGEBRA"]
+
+[[nodes]]
+id = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+role = "provider"
+capability_claims = ["GRAPH_MATCH"]

@@ -1,0 +1,19 @@
+{
+  "name": "happy_gpu",
+  "round": 0,
+  "requester": {
+    "role": "requester",
+    "node_id": "1111111111111111111111111111111111111111111111111111111111111111",
+    "round": 0,
+    "required_capability": "GPU"
+  },
+  "provider": {
+    "role": "provider",
+    "node_id": "2222222222222222222222222222222222222222222222222222222222222222",
+    "round": 0,
+    "capability_claims": ["GPU", "LLM"]
+  },
+  "expected": {
+    "outcome": "accept"
+  }
+}
