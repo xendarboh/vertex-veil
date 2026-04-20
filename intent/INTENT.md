@@ -232,7 +232,6 @@ The coordination transport for `v1` is Vertex directly. FoxMQ is not a primary r
 - Exact commitment construction shared between Rust and Noir
 - Exact proof artifact format carried in coordination messages
 - Canonical definition of stable public key order
-- Whether non-winning providers emit explicit no-objection attestations in `v1`
 - Exact capability encoding shared between Rust and Noir
 
 :::
