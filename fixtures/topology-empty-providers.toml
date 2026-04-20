@@ -1,0 +1,7 @@
+version = 1
+capability_tags = ["GPU"]
+
+[[nodes]]
+id = "1111111111111111111111111111111111111111111111111111111111111111"
+role = "requester"
+required_capability = "GPU"

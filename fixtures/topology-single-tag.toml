@@ -1,0 +1,12 @@
+version = 1
+capability_tags = ["GPU"]
+
+[[nodes]]
+id = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+role = "requester"
+required_capability = "GPU"
+
+[[nodes]]
+id = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+role = "provider"
+capability_claims = ["GPU"]

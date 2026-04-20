@@ -24,46 +24,46 @@ Create the Rust workspace and baseline project layout for protocol code, agent C
 
 #### Happy Path
 
-- [ ] Rust workspace builds with library crate, CLI crate, and circuit directory wiring in place
-- [ ] Shared intent, match, round, and artifact types serialize and deserialize deterministically
-- [ ] Runtime configuration loads a 4-node baseline topology from fixture files
-- [ ] Public coordination artifact schema is sufficient to represent verifier inputs without any private witness fields
+- [x] Rust workspace builds with library crate, CLI crate, and circuit directory wiring in place
+- [x] Shared intent, match, round, and artifact types serialize and deserialize deterministically
+- [x] Runtime configuration loads a 4-node baseline topology from fixture files
+- [x] Public coordination artifact schema is sufficient to represent verifier inputs without any private witness fields
 
 #### Bad Path
 
-- [ ] Invalid topology config is rejected with a structured error
-- [ ] Unknown capability tag input is rejected or normalized by the configured parser
-- [ ] Missing required fixture fields fail config loading cleanly
-- [ ] Invalid stable key ordering input fails validation before runtime start
-- [ ] Artifact schema creation rejects attempts to include private witness fields in verifier-facing records
+- [x] Invalid topology config is rejected with a structured error
+- [x] Unknown capability tag input is rejected or normalized by the configured parser
+- [x] Missing required fixture fields fail config loading cleanly
+- [x] Invalid stable key ordering input fails validation before runtime start
+- [x] Artifact schema creation rejects attempts to include private witness fields in verifier-facing records
 
 #### Edge Cases
 
-- [ ] Empty provider list config is rejected explicitly
-- [ ] Single illustrative capability tag config still loads successfully
-- [ ] Duplicate node identifiers in topology config are rejected
-- [ ] Artifact schema remains valid when optional public metadata is absent
+- [x] Empty provider list config is rejected explicitly
+- [x] Single illustrative capability tag config still loads successfully
+- [x] Duplicate node identifiers in topology config are rejected
+- [x] Artifact schema remains valid when optional public metadata is absent
 
 #### Security
 
-- [ ] Config parsing rejects malformed message paths and unsafe relative traversal inputs
-- [ ] Artifact output paths are validated before file creation
-- [ ] Stable public key parsing rejects malformed keys without panicking
-- [ ] Shared artifact types reject duplicate commitment entries for the same agent key in a single round
+- [x] Config parsing rejects malformed message paths and unsafe relative traversal inputs
+- [x] Artifact output paths are validated before file creation
+- [x] Stable public key parsing rejects malformed keys without panicking
+- [x] Shared artifact types reject duplicate commitment entries for the same agent key in a single round
 
 #### Data Leak
 
-- [ ] Config errors do not print private fixture values that are meant to simulate secret inputs
-- [ ] Default logs do not dump full private intent bodies
-- [ ] Debug formatting for shared types redacts private fields by default
-- [ ] Public artifact schema contains no private witness material by construction
+- [x] Config errors do not print private fixture values that are meant to simulate secret inputs
+- [x] Default logs do not dump full private intent bodies
+- [x] Debug formatting for shared types redacts private fields by default
+- [x] Public artifact schema contains no private witness material by construction
 
 #### Data Damage
 
-- [ ] Artifact directory initialization does not clobber existing run data unintentionally
-- [ ] Partial config load failure does not leave corrupted generated state files
-- [ ] Shared serialization roundtrip preserves field integrity exactly
-- [ ] Artifact schema roundtrip preserves verifier-relevant public fields exactly
+- [x] Artifact directory initialization does not clobber existing run data unintentionally
+- [x] Partial config load failure does not leave corrupted generated state files
+- [x] Shared serialization roundtrip preserves field integrity exactly
+- [x] Artifact schema roundtrip preserves verifier-relevant public fields exactly
 
 ### E2E Gate
 
@@ -71,13 +71,24 @@ Create the Rust workspace and baseline project layout for protocol code, agent C
 cargo test -p vertex-veil-core config shared_types artifacts && cargo test -p vertex-veil-agents cli_bootstrap
 ```
 
+> Implementation note (surfaced 2026-04-20): `cargo test` only accepts a
+> single `TESTNAME` positional; multiple filters must be forwarded to libtest
+> via `--`. The equivalent command that satisfies this gate functionally is:
+>
+> ```bash
+> cargo test -p vertex-veil-core -- config shared_types artifacts && cargo test -p vertex-veil-agents cli_bootstrap
+> ```
+>
+> The gate is recorded here without silently rewriting it; future phases with
+> similar multi-filter gates should use the `--` form.
+
 ### Acceptance Criteria
 
-- [ ] All 6 test categories pass
-- [ ] Rust workspace and crate layout are in place
-- [ ] Shared protocol types exist for intents, matches, rounds, proofs, and run artifacts
-- [ ] Public coordination artifact schema is sufficient for third-party verification inputs
-- [ ] E2E Gate passes
+- [x] All 6 test categories pass
+- [x] Rust workspace and crate layout are in place
+- [x] Shared protocol types exist for intents, matches, rounds, proofs, and run artifacts
+- [x] Public coordination artifact schema is sufficient for third-party verification inputs
+- [x] E2E Gate passes (using the `--` form; see note above)
 
 ---
 

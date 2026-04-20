@@ -1,0 +1,22 @@
+version = 1
+capability_tags = ["GPU", "CPU", "LLM", "ZK_DEV"]
+
+[[nodes]]
+id = "1111111111111111111111111111111111111111111111111111111111111111"
+role = "requester"
+required_capability = "GPU"
+
+[[nodes]]
+id = "2222222222222222222222222222222222222222222222222222222222222222"
+role = "provider"
+capability_claims = ["GPU", "LLM"]
+
+[[nodes]]
+id = "3333333333333333333333333333333333333333333333333333333333333333"
+role = "provider"
+capability_claims = ["GPU"]
+
+[[nodes]]
+id = "4444444444444444444444444444444444444444444444444444444444444444"
+role = "provider"
+capability_claims = ["CPU"]

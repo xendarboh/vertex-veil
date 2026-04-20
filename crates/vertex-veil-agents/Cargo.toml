@@ -1,0 +1,18 @@
+[package]
+name = "vertex-veil-agents"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Vertex Veil CLI agents: requester, provider, and standalone verifier."
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "vertex-veil-agents"
+path = "src/main.rs"
+
+[dependencies]
+vertex-veil-core = { path = "../vertex-veil-core" }
+clap = { workspace = true }
+thiserror = { workspace = true }
