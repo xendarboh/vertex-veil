@@ -68,19 +68,8 @@ Create the Rust workspace and baseline project layout for protocol code, agent C
 ### E2E Gate
 
 ```bash
-cargo test -p vertex-veil-core config shared_types artifacts && cargo test -p vertex-veil-agents cli_bootstrap
+cargo test -p vertex-veil-core -- config shared_types artifacts && cargo test -p vertex-veil-agents cli_bootstrap
 ```
-
-> Implementation note (surfaced 2026-04-20): `cargo test` only accepts a
-> single `TESTNAME` positional; multiple filters must be forwarded to libtest
-> via `--`. The equivalent command that satisfies this gate functionally is:
->
-> ```bash
-> cargo test -p vertex-veil-core -- config shared_types artifacts && cargo test -p vertex-veil-agents cli_bootstrap
-> ```
->
-> The gate is recorded here without silently rewriting it; future phases with
-> similar multi-filter gates should use the `--` form.
 
 ### Acceptance Criteria
 
