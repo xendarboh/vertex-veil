@@ -1,0 +1,28 @@
+[package]
+name = "vertex-veil-noir"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Rust bridge to the Vertex Veil Noir circuits (requester, provider). Wraps noir_rs at v1.0.0-beta.20."
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+vertex-veil-core = { path = "../vertex-veil-core" }
+noir_rs = { git = "https://github.com/zkpassport/noir_rs.git", tag = "v1.0.0-beta.20-1" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+hex = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[features]
+default = []
+# Enabling this feature pulls in barretenberg-rs via noir_rs for full
+# prove/verify flows. Disabled by default so the crate builds without
+# network access or native bb libraries; the `execute`-only path is
+# sufficient for round-bound commitment validation and Rust/Noir parity.
+barretenberg = ["noir_rs/barretenberg"]

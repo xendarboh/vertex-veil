@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/vertex-veil-core",
     "crates/vertex-veil-agents",
+    "crates/vertex-veil-noir",
 ]
 
 [workspace.package]
@@ -17,4 +18,5 @@ toml = "0.8"
 thiserror = "2"
 hex = "0.4"
 sha2 = "0.10"
+blake2 = "0.10"
 clap = { version = "4", features = ["derive"] }

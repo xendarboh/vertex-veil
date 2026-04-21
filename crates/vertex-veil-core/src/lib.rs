@@ -34,8 +34,10 @@ pub use artifacts::{
 pub use candidate::{derive_candidate, Candidate, CandidateRejection};
 pub use capability::{CapabilityTag, CapabilityTagSet};
 pub use commitments::{
-    commit_provider, commit_requester, derive_test_nonce, CommitmentBytes, CommitmentError,
-    COMMIT_DOMAIN_PROVIDER, COMMIT_DOMAIN_REQUESTER, COMMIT_SCHEMA_VERSION,
+    build_provider_preimage, build_requester_preimage, commit_provider, commit_requester,
+    derive_test_nonce, hash_preimage_provider, hash_preimage_requester, CommitmentBytes,
+    CommitmentError, COMMIT_DOMAIN_PROVIDER, COMMIT_DOMAIN_REQUESTER, COMMIT_SCHEMA_VERSION,
+    MAX_CAPABILITY_BYTES, MAX_CAPABILITY_CLAIMS, PROVIDER_PREIMAGE_LEN, REQUESTER_PREIMAGE_LEN,
 };
 pub use config::{NodeConfig, Role, TopologyConfig};
 pub use error::{ArtifactError, ConfigError};

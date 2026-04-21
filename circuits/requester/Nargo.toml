@@ -1,0 +1,7 @@
+[package]
+name = "vertex_veil_requester"
+type = "bin"
+authors = ["Vertex Veil"]
+
+[dependencies]
+vertex_veil_shared = { path = "../shared" }

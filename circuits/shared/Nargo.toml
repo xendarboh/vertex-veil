@@ -1,0 +1,6 @@
+[package]
+name = "vertex_veil_shared"
+type = "lib"
+authors = ["Vertex Veil"]
+
+[dependencies]

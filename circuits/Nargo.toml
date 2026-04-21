@@ -1,0 +1,3 @@
+[workspace]
+members = ["shared", "requester", "provider"]
+default-member = "requester"
