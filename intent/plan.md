@@ -211,16 +211,21 @@ Implement the Noir circuits and Rust integration boundaries required for agents 
 ### E2E Gate
 
 ```bash
-nargo test --workspace && cargo test -p vertex-veil-core -- proofs noir_bridge predicate_parity
+cd circuits && nargo compile --workspace && nargo test --workspace && cd .. && cargo test -p vertex-veil-core -- proofs noir_bridge predicate_parity
 ```
 
 > Implementation notes (surfaced 2026-04-20):
 >
+> - **Noir commands run from `circuits/`.** The gate command above enters the
+>   Noir workspace explicitly because `vertex-veil/` itself does not contain a
+>   `Nargo.toml`.
 > - **`nargo test` needs `--workspace`** to run tests in `shared`, `provider`,
 >   and `requester`. The gate command above is corrected; the bare `nargo
 >   test` form exercises only the `default-member` from
 >   `circuits/Nargo.toml`.
->
+> - **`nargo compile --workspace` is required on a fresh checkout.** Rust-side
+>   bridge and parity tests load compiled circuit JSON artifacts from
+>   `circuits/target/`, which are generated and not checked into git.
 > - **Hash function chosen: blake2s.** Noir stdlib v1.0.0-beta.20 exposes
 >   `sha256_compression` (the block primitive) but not a full `sha256`. To
 >   keep parity tractable, both Rust commitments and Noir circuits use
@@ -312,7 +317,7 @@ Build the CLI agents and Vertex-backed runtime that publish commitments, derive 
 ### E2E Gate
 
 ```bash
-cargo test -p vertex-veil-core -- verifier runtime_log adversarial && cargo run -p vertex-veil-agents -- demo --topology fixtures/topology-4node.toml --scenario fixtures/replay-doublecommit-drop.toml --artifacts artifacts/phase3 && cargo run -p vertex-veil-agents -- verify --artifacts artifacts/phase3
+cd circuits && nargo compile --workspace && cd .. && cargo test -p vertex-veil-core -- verifier runtime_log adversarial && cargo run -p vertex-veil-agents -- demo --topology fixtures/topology-4node.toml --scenario fixtures/replay-doublecommit-drop.toml --artifacts artifacts/phase3 && cargo run -p vertex-veil-agents -- verify --artifacts artifacts/phase3
 ```
 
 ### Acceptance Criteria
@@ -380,7 +385,7 @@ Harden the full demo flow around the validated 4-node baseline, fallback rounds,
 ### E2E Gate
 
 ```bash
-cargo test && nargo test && cargo run -p vertex-veil-agents -- demo --topology fixtures/topology-4node.toml --scenario fixtures/replay-doublecommit-drop.toml --artifacts artifacts/final && cargo run -p vertex-veil-agents -- verify --artifacts artifacts/final
+cd circuits && nargo compile --workspace && nargo test --workspace && cd .. && cargo test && cargo run -p vertex-veil-agents -- demo --topology fixtures/topology-4node.toml --scenario fixtures/replay-doublecommit-drop.toml --artifacts artifacts/final && cargo run -p vertex-veil-agents -- verify --artifacts artifacts/final
 ```
 
 ### Acceptance Criteria
@@ -397,7 +402,7 @@ cargo test && nargo test && cargo run -p vertex-veil-agents -- demo --topology f
 ## Final E2E Verification
 
 ```bash
-cargo test && nargo test && cargo run -p vertex-veil-agents -- demo --topology fixtures/topology-4node.toml --scenario fixtures/replay-doublecommit-drop.toml --artifacts artifacts/final && cargo run -p vertex-veil-agents -- verify --artifacts artifacts/final
+cd circuits && nargo compile --workspace && nargo test --workspace && cd .. && cargo test && cargo run -p vertex-veil-agents -- demo --topology fixtures/topology-4node.toml --scenario fixtures/replay-doublecommit-drop.toml --artifacts artifacts/final && cargo run -p vertex-veil-agents -- verify --artifacts artifacts/final
 ```
 
 ## Risk Mitigation

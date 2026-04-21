@@ -44,7 +44,7 @@ fn requester_full_prove_then_verify() {
     let art = CircuitArtifact::from_path(
         repo_root().join("circuits/target/vertex_veil_requester.json"),
     )
-    .expect("compiled requester artifact");
+    .expect("compiled requester artifact; run `nargo compile --workspace` in circuits/");
     let circuit = RequesterCircuit::load(art).unwrap();
 
     setup_srs_from_bytecode(circuit.bytecode(), None, false)
@@ -78,7 +78,7 @@ fn provider_full_prove_then_verify() {
     let art = CircuitArtifact::from_path(
         repo_root().join("circuits/target/vertex_veil_provider.json"),
     )
-    .expect("compiled provider artifact");
+    .expect("compiled provider artifact; run `nargo compile --workspace` in circuits/");
     let circuit = ProviderCircuit::load(art).unwrap();
 
     setup_srs_from_bytecode(circuit.bytecode(), None, false).expect("SRS setup");
@@ -114,7 +114,7 @@ fn requester_wrong_round_proof_rejected() {
     let art = CircuitArtifact::from_path(
         repo_root().join("circuits/target/vertex_veil_requester.json"),
     )
-    .expect("compiled requester artifact");
+    .expect("compiled requester artifact; run `nargo compile --workspace` in circuits/");
     let circuit = RequesterCircuit::load(art).unwrap();
 
     setup_srs_from_bytecode(circuit.bytecode(), None, false).expect("SRS setup");
@@ -148,4 +148,3 @@ fn requester_wrong_round_proof_rejected() {
         "prover must refuse to prove against a tampered public round"
     );
 }
-

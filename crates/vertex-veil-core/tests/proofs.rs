@@ -51,14 +51,14 @@ fn repo_root() -> PathBuf {
 fn load_requester() -> RequesterCircuit {
     let art =
         CircuitArtifact::from_path(repo_root().join("circuits/target/vertex_veil_requester.json"))
-            .expect("requester artifact");
+            .expect("requester artifact; run `nargo compile --workspace` in circuits/");
     RequesterCircuit::load(art).unwrap()
 }
 
 fn load_provider() -> ProviderCircuit {
     let art =
         CircuitArtifact::from_path(repo_root().join("circuits/target/vertex_veil_provider.json"))
-            .expect("provider artifact");
+            .expect("provider artifact; run `nargo compile --workspace` in circuits/");
     ProviderCircuit::load(art).unwrap()
 }
 
