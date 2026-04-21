@@ -385,46 +385,46 @@ Harden the full demo flow around the validated 4-node baseline, fallback rounds,
 
 #### Happy Path
 
-- [ ] Single command runs the baseline 4-node demo and produces a valid verifier report
-- [ ] Demo artifacts include coordination log, verifier report, and completion receipt in a predictable layout
-- [ ] Multi-round run completes successfully when the first proposal path fails and fallback recovers
-- [ ] Third-party verifier run from artifacts alone succeeds without any private inputs present on disk
+- [x] Single command runs the baseline 4-node demo and produces a valid verifier report
+- [x] Demo artifacts include coordination log, verifier report, and completion receipt in a predictable layout
+- [x] Multi-round run completes successfully when the first proposal path fails and fallback recovers
+- [x] Third-party verifier run from artifacts alone succeeds without any private inputs present on disk
 
 #### Bad Path
 
-- [ ] Demo command fails clearly when required toolchain dependencies are missing
-- [ ] Demo command fails clearly when one node config is malformed
-- [ ] Verifier report marks invalid when final artifact bundle is incomplete
-- [ ] Demo run exits non-zero when the fallback round cannot recover to a valid match
-- [ ] Demo run exits non-zero with a verifiable abort artifact when silent-node or drop conditions exceed the recoverable threshold
+- [x] Demo command fails clearly when required toolchain dependencies are missing
+- [x] Demo command fails clearly when one node config is malformed
+- [x] Verifier report marks invalid when final artifact bundle is incomplete
+- [x] Demo run exits non-zero when the fallback round cannot recover to a valid match
+- [x] Demo run exits non-zero with a verifiable abort artifact when silent-node or drop conditions exceed the recoverable threshold
 
 #### Edge Cases
 
-- [ ] Baseline demo still works when using only a subset of illustrative capability tags
-- [ ] Demo supports a larger runtime-configured topology without breaking the baseline profile
-- [ ] Artifact packaging remains deterministic across repeated runs with the same fixtures
-- [ ] Replay and double-commit adversarial fixtures remain reproducible across repeated runs
+- [x] Baseline demo still works when using only a subset of illustrative capability tags
+- [x] Demo supports a larger runtime-configured topology without breaking the baseline profile
+- [x] Artifact packaging remains deterministic across repeated runs with the same fixtures
+- [x] Replay and double-commit adversarial fixtures remain reproducible across repeated runs
 
 #### Security
 
-- [ ] Packaged demo artifacts do not include private witness or secret fixture material
-- [ ] Judge-facing logs remain free of plaintext private price data
-- [ ] Replay or tamper attempts in the packaged artifact set are detected by the verifier script
-- [ ] Artifact bundle demonstrates visible rejection of invalid proof, replay, and double-commit scenarios
+- [x] Packaged demo artifacts do not include private witness or secret fixture material
+- [x] Judge-facing logs remain free of plaintext private price data
+- [x] Replay or tamper attempts in the packaged artifact set are detected by the verifier script
+- [x] Artifact bundle demonstrates visible rejection of invalid proof, replay, and double-commit scenarios
 
 #### Data Leak
 
-- [ ] README/demo script examples do not instruct users to expose private constraints
-- [ ] Final report summaries remain public-only and redact internal witness paths where needed
-- [ ] Failure output remains informative without leaking secret fixture values
-- [ ] Public verifier workflow documentation never requires private input material
+- [x] README/demo script examples do not instruct users to expose private constraints
+- [x] Final report summaries remain public-only and redact internal witness paths where needed
+- [x] Failure output remains informative without leaking secret fixture values
+- [x] Public verifier workflow documentation never requires private input material
 
 #### Data Damage
 
-- [ ] Demo command cleans or versions artifact directories without deleting unrelated files
-- [ ] Re-running the demo does not corrupt prior saved reports
-- [ ] Multi-round failure handling leaves a coherent final artifact bundle
-- [ ] Adversarial demo bundle preserves enough evidence for third-party verification after failures
+- [x] Demo command cleans or versions artifact directories without deleting unrelated files
+- [x] Re-running the demo does not corrupt prior saved reports
+- [x] Multi-round failure handling leaves a coherent final artifact bundle
+- [x] Adversarial demo bundle preserves enough evidence for third-party verification after failures
 
 ### E2E Gate
 
@@ -434,12 +434,56 @@ cd circuits && nargo compile --workspace && nargo test --workspace && cd .. && c
 
 ### Acceptance Criteria
 
-- [ ] All 6 test categories pass
-- [ ] Single-command demo is reproducible on the validated 4-node baseline
-- [ ] Fallback-round behavior is demonstrated end-to-end
-- [ ] Invalid-proof, replay, and double-commit rejection are demonstrated end-to-end
-- [ ] Final artifact bundle is judge-friendly, verifier-backed, and sufficient for third-party verification from public inputs alone
-- [ ] E2E Gate passes
+- [x] All 6 test categories pass
+- [x] Single-command demo is reproducible on the validated 4-node baseline
+- [x] Fallback-round behavior is demonstrated end-to-end
+- [x] Invalid-proof, replay, and double-commit rejection are demonstrated end-to-end
+- [x] Final artifact bundle is judge-friendly, verifier-backed, and sufficient for third-party verification from public inputs alone
+- [x] E2E Gate passes
+
+> Implementation notes (surfaced 2026-04-21):
+>
+> - **Ed25519 completion-receipt signatures.** Each topology node carries
+>   an optional `signing_public_key` (32-byte curve point, hex); the
+>   private-intent fixture carries the matching `signing_secret_key`
+>   (32-byte seed, hex) inside a `Secret<SigningSecretSeed>`. The runtime
+>   signs receipts with ed25519-dalek; the verifier checks with the
+>   configured public key. Phase 3 fixtures that omit both fields still
+>   verify via the legacy deterministic blake2s tag, so back-compat stays
+>   silent for existing logs.
+> - **Artifact bundle layout (Phase 4 judge-facing):**
+>   `coordination_log.json`, `verifier_report.json`, `run_status.json`,
+>   `completion_receipt.json`, `bundle_README.md`, `topology.toml`,
+>   `scenario.toml` (when supplied). `run_status.json` surfaces
+>   `finalized`, `final_round`, `receipt_present`, `abort_reason`,
+>   `rejection_count`, and the full `bundle_files` manifest in a single
+>   public artifact.
+> - **Abort handling.** When `max_rounds` is exhausted without
+>   finalization the runtime sets `CoordinationLog.abort_reason =
+>   "max_rounds_exceeded"`. The bundle is still written, the verifier
+>   re-confirms structural coherence, and the demo binary exits with
+>   code 2 so CI / scripts can distinguish abort from happy path without
+>   parsing artifacts.
+> - **Directory versioning.** By default the demo rotates any existing
+>   bundle to `<artifacts>.prev-<N>` (monotonic N) via a whole-dir
+>   rename, preserving every file — including unrelated files a judge
+>   dropped in — intact. `--force` overwrites in place but still only
+>   touches files from the writer's manifest.
+> - **Real tashi-vertex transport behind a feature flag.** A
+>   `VertexTransport: CoordinationTransport` lives in
+>   `crates/vertex-veil-agents/src/vertex_transport.rs` gated by the
+>   `vertex-transport` cargo feature, which pulls in `tashi-vertex`
+>   (git dep) + `tokio` + `anyhow`. The default build and the E2E Gate
+>   stay network-free and deterministic; `cargo check -p
+>   vertex-veil-agents --features vertex-transport` validates that the
+>   Vertex-backed path compiles. Protocol logic is transport-agnostic,
+>   so swapping `OrderedBus` for `VertexTransport` requires no change
+>   to `vertex-veil-core`.
+> - **Private-intent parse-error redaction.** The loader already stripped
+>   TOML pipe-prefixed source echoes; Phase 4 also blanks any
+>   `"..."`-quoted substring from the residual diagnostic so the TOML
+>   "invalid type: string \"SECRET\"" path cannot leak the offending
+>   value.
 
 ---
 

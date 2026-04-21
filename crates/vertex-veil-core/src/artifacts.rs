@@ -95,6 +95,25 @@ pub struct VerifierReport {
     pub reasons: Vec<String>,
 }
 
+/// Judge-facing summary artifact. Describes whether the run finalized,
+/// which round ended the run, whether a completion receipt is present, the
+/// optional abort reason, and the set of filenames a third party needs to
+/// verify the run from public data alone.
+///
+/// Values never carry private witness material by construction: every field
+/// is either a public identifier, a counter, or a machine-readable tag.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RunStatus {
+    pub run_id: String,
+    pub finalized: bool,
+    pub final_round: RoundId,
+    pub receipt_present: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub abort_reason: Option<String>,
+    pub rejection_count: usize,
+    pub bundle_files: Vec<String>,
+}
+
 /// Canonical ordered public coordination record for one run.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CoordinationLog {
@@ -118,6 +137,11 @@ pub struct CoordinationLog {
     /// True when the run produced a valid completion receipt on `final_round`.
     #[serde(default)]
     pub finalized: bool,
+    /// Short machine-readable reason the run aborted (e.g.
+    /// `"max_rounds_exceeded"`, `"requester_persistently_silent"`). Absent
+    /// on a finalized run. Phase 4 addition; back-compat via serde-default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub abort_reason: Option<String>,
     #[serde(skip_serializing, skip_deserializing)]
     commitment_keys: BTreeSet<(NodeId, RoundId)>,
 }
@@ -134,6 +158,7 @@ impl CoordinationLog {
             rejections: Vec::new(),
             final_round: RoundId::new(0),
             finalized: false,
+            abort_reason: None,
             commitment_keys: BTreeSet::new(),
         }
     }
@@ -172,6 +197,12 @@ impl CoordinationLog {
         self.finalized = finalized;
     }
 
+    /// Record a machine-readable abort reason. Only meaningful when
+    /// `finalized = false`.
+    pub fn set_abort_reason(&mut self, reason: impl Into<String>) {
+        self.abort_reason = Some(reason.into());
+    }
+
     /// Recompute internal commitment-key index from the public vector.
     /// Needed after deserialization because the index is not persisted.
     pub fn reindex(&mut self) -> Result<(), ArtifactError> {
@@ -195,6 +226,7 @@ impl CoordinationLog {
 /// - rejects parent-directory traversal in output paths
 /// - rejects empty or whitespace-only path components
 /// - refuses to overwrite an existing `coordination_log.json`
+///   (use [`ArtifactWriter::open_versioned`] for rotate-on-exists behavior)
 #[derive(Debug)]
 pub struct ArtifactWriter {
     dir: PathBuf,
@@ -202,6 +234,11 @@ pub struct ArtifactWriter {
 
 impl ArtifactWriter {
     /// Open a writer rooted at `dir`, creating the directory if needed.
+    ///
+    /// If the directory already contains a `coordination_log.json`, the
+    /// writer refuses to clobber it. Use [`Self::open_versioned`] to rotate
+    /// an existing bundle into a timestamped sibling directory before
+    /// writing the new one.
     pub fn new(dir: impl AsRef<Path>) -> Result<Self, ArtifactError> {
         let dir = dir.as_ref().to_path_buf();
         validate_output_path(&dir)?;
@@ -215,6 +252,67 @@ impl ArtifactWriter {
             fs::create_dir_all(&dir).map_err(ArtifactError::io)?;
         }
         Ok(ArtifactWriter { dir })
+    }
+
+    /// Open a writer rooted at `dir`, rotating any existing bundle to
+    /// `<dir>.prev-<version>` first. Version suffix uses a monotonic
+    /// `version` integer so repeated runs produce `.prev-1`, `.prev-2`, etc.
+    /// Files not produced by this writer (unknown filenames) are left
+    /// untouched when the directory is rotated: the whole directory is
+    /// moved to the `.prev-*` sibling, preserving every file intact.
+    ///
+    /// Returns `(writer, rotated_to)` where `rotated_to` is `Some(path)`
+    /// when a rotation happened.
+    pub fn open_versioned(
+        dir: impl AsRef<Path>,
+    ) -> Result<(Self, Option<PathBuf>), ArtifactError> {
+        let dir = dir.as_ref().to_path_buf();
+        validate_output_path(&dir)?;
+        let rotated_to = if dir.exists() {
+            if !dir.is_dir() {
+                return Err(ArtifactError::InvalidOutputPath(
+                    "artifact path exists and is not a directory".into(),
+                ));
+            }
+            // Only rotate if the directory is non-empty.
+            let empty = fs::read_dir(&dir)
+                .map_err(ArtifactError::io)?
+                .next()
+                .transpose()
+                .map_err(ArtifactError::io)?
+                .is_none();
+            if empty {
+                None
+            } else {
+                let parent = dir.parent().ok_or_else(|| {
+                    ArtifactError::InvalidOutputPath(
+                        "artifact dir has no parent for rotation".into(),
+                    )
+                })?;
+                let stem = dir
+                    .file_name()
+                    .and_then(|s| s.to_str())
+                    .ok_or_else(|| {
+                        ArtifactError::InvalidOutputPath(
+                            "artifact dir has non-utf8 name".into(),
+                        )
+                    })?
+                    .to_string();
+                let mut version: u64 = 1;
+                let mut target = parent.join(format!("{stem}.prev-{version}"));
+                while target.exists() {
+                    version += 1;
+                    target = parent.join(format!("{stem}.prev-{version}"));
+                }
+                fs::rename(&dir, &target).map_err(ArtifactError::io)?;
+                fs::create_dir_all(&dir).map_err(ArtifactError::io)?;
+                Some(target)
+            }
+        } else {
+            fs::create_dir_all(&dir).map_err(ArtifactError::io)?;
+            None
+        };
+        Ok((ArtifactWriter { dir }, rotated_to))
     }
 
     /// Write the coordination log, refusing to clobber an existing run.
@@ -234,6 +332,41 @@ impl ArtifactWriter {
         let out = self.dir.join("verifier_report.json");
         let json = serde_json::to_string_pretty(report).map_err(ArtifactError::serialization)?;
         fs::write(&out, json).map_err(ArtifactError::io)?;
+        Ok(out)
+    }
+
+    /// Write the judge-facing run status summary. Safe to overwrite.
+    pub fn write_run_status(&self, status: &RunStatus) -> Result<PathBuf, ArtifactError> {
+        let out = self.dir.join("run_status.json");
+        let json = serde_json::to_string_pretty(status).map_err(ArtifactError::serialization)?;
+        fs::write(&out, json).map_err(ArtifactError::io)?;
+        Ok(out)
+    }
+
+    /// Write the extracted completion receipt (if any) as its own file for
+    /// judge convenience. Overwriting is allowed. Returns `None` when the
+    /// log contains no receipt.
+    pub fn write_receipt_copy(
+        &self,
+        receipt: Option<&CompletionReceiptRecord>,
+    ) -> Result<Option<PathBuf>, ArtifactError> {
+        match receipt {
+            None => Ok(None),
+            Some(r) => {
+                let out = self.dir.join("completion_receipt.json");
+                let json = serde_json::to_string_pretty(r).map_err(ArtifactError::serialization)?;
+                fs::write(&out, json).map_err(ArtifactError::io)?;
+                Ok(Some(out))
+            }
+        }
+    }
+
+    /// Write the bundle README. Contains only public information: the
+    /// verifier command, a short file manifest, and a note about the run
+    /// outcome. Safe to overwrite.
+    pub fn write_bundle_readme(&self, body: &str) -> Result<PathBuf, ArtifactError> {
+        let out = self.dir.join("bundle_README.md");
+        fs::write(&out, body).map_err(ArtifactError::io)?;
         Ok(out)
     }
 

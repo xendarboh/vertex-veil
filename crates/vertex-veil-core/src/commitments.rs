@@ -307,6 +307,7 @@ mod tests {
             node_id: NodeId::from_bytes([0x11; 32]),
             required_capability: CapabilityTag::parse_shape("GPU").unwrap(),
             budget_cents: Secret::new(budget),
+            signing_secret_key: None,
         }
     }
 
@@ -315,6 +316,7 @@ mod tests {
             node_id: NodeId::from_bytes([0x22; 32]),
             capability_claims: vec![CapabilityTag::parse_shape("GPU").unwrap()],
             reservation_cents: Secret::new(reservation),
+            signing_secret_key: None,
         }
     }
 
@@ -380,6 +382,7 @@ mod tests {
             node_id: NodeId::from_bytes([0x22; 32]),
             capability_claims: Vec::new(),
             reservation_cents: Secret::new(777_007u64),
+            signing_secret_key: None,
         };
         let err = commit_provider(&intent, &[0; 32], RoundId::new(0)).unwrap_err();
         let msg = format!("{err}");

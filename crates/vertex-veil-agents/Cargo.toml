@@ -12,6 +12,15 @@ path = "src/lib.rs"
 name = "vertex-veil-agents"
 path = "src/main.rs"
 
+[features]
+# Default build is network-free and deterministic. The `vertex-transport`
+# feature opts in to the real `tashi-vertex` transport plus a `node`
+# subcommand that runs a single agent attached to a Vertex socket; it is
+# intentionally NOT part of the default gate so the fast deterministic
+# baseline stays reproducible without external network access.
+default = []
+vertex-transport = ["dep:tashi-vertex", "dep:tokio", "dep:anyhow"]
+
 [dependencies]
 vertex-veil-core = { path = "../vertex-veil-core" }
 clap = { workspace = true }
@@ -20,3 +29,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }
 hex = { workspace = true }
+# Optional: real tashi-vertex transport + single-node CLI.
+tashi-vertex = { git = "https://github.com/tashigit/tashi-vertex-rs.git", optional = true }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"], optional = true }
+anyhow = { version = "1", optional = true }

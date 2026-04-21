@@ -76,6 +76,7 @@ fn baseline_agents() -> BTreeMap<NodeId, AgentState> {
             node_id: NodeId::from_bytes([0x11; 32]),
             required_capability: CapabilityTag::parse_shape("GPU").unwrap(),
             budget_cents: Secret::new(1000),
+            signing_secret_key: None,
         }),
     );
     for (b, cs, p) in [
@@ -92,6 +93,7 @@ fn baseline_agents() -> BTreeMap<NodeId, AgentState> {
                     .map(|c| CapabilityTag::parse_shape(c).unwrap())
                     .collect(),
                 reservation_cents: Secret::new(p),
+                signing_secret_key: None,
             }),
         );
     }
@@ -278,6 +280,7 @@ capability_claims = ["CPU"]
             node_id: NodeId::from_bytes([0x11; 32]),
             required_capability: CapabilityTag::parse_shape("GPU").unwrap(),
             budget_cents: Secret::new(1000),
+            signing_secret_key: None,
         }),
     );
     agents.insert(
@@ -286,6 +289,7 @@ capability_claims = ["CPU"]
             node_id: NodeId::from_bytes([0x44; 32]),
             capability_claims: vec![CapabilityTag::parse_shape("CPU").unwrap()],
             reservation_cents: Secret::new(100),
+            signing_secret_key: None,
         }),
     );
     let rt = CoordinationRuntime::new(topology, OrderedBus::new(), agents, Scenario::empty(), 2)

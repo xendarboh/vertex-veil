@@ -78,6 +78,7 @@ fn baseline_agents() -> BTreeMap<NodeId, AgentState> {
             node_id: NodeId::from_bytes([0x11; 32]),
             required_capability: CapabilityTag::parse_shape("GPU").unwrap(),
             budget_cents: Secret::new(1000),
+            signing_secret_key: None,
         }),
     );
     for (b, claims, price) in [
@@ -94,6 +95,7 @@ fn baseline_agents() -> BTreeMap<NodeId, AgentState> {
                     .map(|c| CapabilityTag::parse_shape(c).unwrap())
                     .collect(),
                 reservation_cents: Secret::new(price),
+                signing_secret_key: None,
             }),
         );
     }
@@ -256,6 +258,7 @@ capability_claims = ["CPU"]
             node_id: NodeId::from_bytes([0x11; 32]),
             required_capability: CapabilityTag::parse_shape("GPU").unwrap(),
             budget_cents: Secret::new(1000),
+            signing_secret_key: None,
         }),
     );
     agents.insert(
@@ -264,6 +267,7 @@ capability_claims = ["CPU"]
             node_id: NodeId::from_bytes([0x44; 32]),
             capability_claims: vec![CapabilityTag::parse_shape("CPU").unwrap()],
             reservation_cents: Secret::new(100),
+            signing_secret_key: None,
         }),
     );
     let rt =
@@ -307,6 +311,7 @@ capability_claims = ["STORAGE_A"]
             node_id: NodeId::from_bytes([0x11; 32]),
             required_capability: CapabilityTag::parse_shape("STORAGE_A").unwrap(),
             budget_cents: Secret::new(800),
+            signing_secret_key: None,
         }),
     );
     agents.insert(
@@ -315,6 +320,7 @@ capability_claims = ["STORAGE_A"]
             node_id: NodeId::from_bytes([0x22; 32]),
             capability_claims: vec![CapabilityTag::parse_shape("STORAGE_A").unwrap()],
             reservation_cents: Secret::new(300),
+            signing_secret_key: None,
         }),
     );
     let rt =

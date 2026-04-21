@@ -58,6 +58,7 @@ fn shared_types_debug_redacts_private_fields() {
         node_id: node(0x11),
         required_capability: CapabilityTag::parse_shape("GPU").unwrap(),
         budget_cents: Secret::new(12345u64),
+        signing_secret_key: None,
     };
     let rendered = format!("{pr:?}");
     assert!(rendered.contains("[REDACTED]"));

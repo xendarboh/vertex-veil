@@ -16,6 +16,7 @@ fn req(budget: u64) -> PrivateRequesterIntent {
         node_id: NodeId::from_bytes([0x11; 32]),
         required_capability: CapabilityTag::parse_shape("GPU").unwrap(),
         budget_cents: Secret::new(budget),
+        signing_secret_key: None,
     }
 }
 
@@ -24,6 +25,7 @@ fn prov(reservation: u64) -> PrivateProviderIntent {
         node_id: NodeId::from_bytes([0x22; 32]),
         capability_claims: vec![CapabilityTag::parse_shape("GPU").unwrap()],
         reservation_cents: Secret::new(reservation),
+        signing_secret_key: None,
     }
 }
 
@@ -87,6 +89,7 @@ fn commitments_provider_errors_do_not_echo_private_reservation() {
         node_id: NodeId::from_bytes([0x22; 32]),
         capability_claims: Vec::new(),
         reservation_cents: Secret::new(reservation),
+        signing_secret_key: None,
     };
     let err = commit_provider(&intent, &nonce, RoundId::new(0)).unwrap_err();
     assert_eq!(err, CommitmentError::InvalidField("capability_claims"));

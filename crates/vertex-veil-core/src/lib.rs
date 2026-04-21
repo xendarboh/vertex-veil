@@ -28,11 +28,13 @@ pub mod proposer;
 pub mod round_machine;
 pub mod runtime;
 pub mod shared_types;
+pub mod signing;
 pub mod verifier;
 
 pub use artifacts::{
     read_coordination_log, ArtifactWriter, CommitmentRecord, CompletionReceiptRecord,
-    CoordinationLog, ProofArtifactRecord, ProposalRecord, RejectionRecord, VerifierReport,
+    CoordinationLog, ProofArtifactRecord, ProposalRecord, RejectionRecord, RunStatus,
+    VerifierReport,
 };
 pub use candidate::{derive_candidate, Candidate, CandidateRejection};
 pub use capability::{CapabilityTag, CapabilityTagSet};
@@ -52,8 +54,12 @@ pub use proposer::{proposer_for_round, ProposerError};
 pub use round_machine::{RoundError, RoundMachine};
 pub use shared_types::{PublicIntent, RoundId, RoundState};
 pub use adversarial::{Scenario, ScenarioEvent};
+pub use signing::{
+    legacy_signature, receipt_message, sign_receipt_ed25519, verify_receipt_ed25519, SignError,
+    SigningPublicKey, SigningSecretSeed, ED25519_PUBLIC_LEN, ED25519_SECRET_LEN, ED25519_SIG_LEN,
+};
 pub use runtime::{
-    AgentState, CoordinationMessage, CoordinationRuntime, OrderedBus, RuntimeError,
-    RuntimeOutcome, CoordinationTransport,
+    AgentState, CoordinationMessage, CoordinationRuntime, CoordinationTransport, MessagePayload,
+    OrderedBus, RuntimeError, RuntimeOutcome, TransportError,
 };
 pub use verifier::{StandaloneVerifier, VerifierError};

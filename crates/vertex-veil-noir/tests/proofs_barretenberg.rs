@@ -54,6 +54,7 @@ fn requester_full_prove_then_verify() {
         node_id: NodeId::from_bytes([0x11; 32]),
         required_capability: CapabilityTag::parse_shape("GPU").unwrap(),
         budget_cents: Secret::new(500),
+        signing_secret_key: None,
     };
     let nonce = [0xa1; 32];
     let (public, _commit) =
@@ -87,6 +88,7 @@ fn provider_full_prove_then_verify() {
         node_id: NodeId::from_bytes([0x22; 32]),
         capability_claims: vec![CapabilityTag::parse_shape("GPU").unwrap()],
         reservation_cents: Secret::new(150),
+        signing_secret_key: None,
     };
     let nonce = [0xb2; 32];
     let (public, _commit) =
@@ -123,6 +125,7 @@ fn requester_wrong_round_proof_rejected() {
         node_id: NodeId::from_bytes([0x11; 32]),
         required_capability: CapabilityTag::parse_shape("GPU").unwrap(),
         budget_cents: Secret::new(500),
+        signing_secret_key: None,
     };
     let nonce = [0xa1; 32];
     let (public, _commit) =

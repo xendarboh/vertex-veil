@@ -67,6 +67,7 @@ fn req_intent(budget: u64) -> PrivateRequesterIntent {
         node_id: NodeId::from_bytes([0x11; 32]),
         required_capability: CapabilityTag::parse_shape("GPU").unwrap(),
         budget_cents: Secret::new(budget),
+        signing_secret_key: None,
     }
 }
 
@@ -75,6 +76,7 @@ fn prov_intent(reservation: u64) -> PrivateProviderIntent {
         node_id: NodeId::from_bytes([0x22; 32]),
         capability_claims: vec![CapabilityTag::parse_shape("GPU").unwrap()],
         reservation_cents: Secret::new(reservation),
+        signing_secret_key: None,
     }
 }
 

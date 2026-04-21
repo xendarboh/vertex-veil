@@ -1,3 +1,8 @@
+# Larger runtime-configured topology: 1 requester + 5 providers. Phase 4
+# edge-case fixture demonstrating that the validated 4-node baseline
+# profile extends cleanly to larger participant counts without changing the
+# protocol.
+
 version = 1
 capability_tags = ["GPU", "CPU", "LLM", "ZK_DEV"]
 
@@ -24,3 +29,15 @@ id = "4444444444444444444444444444444444444444444444444444444444444444"
 role = "provider"
 capability_claims = ["CPU"]
 signing_public_key = "d759793bbc13a2819a827c76adb6fba8a49aee007f49f2d0992d99b825ad2c48"
+
+[[nodes]]
+id = "5555555555555555555555555555555555555555555555555555555555555555"
+role = "provider"
+capability_claims = ["ZK_DEV"]
+signing_public_key = "c6822637c7d310ec57627be00ba259d253749f4aaf644470cffbe53a35f73242"
+
+[[nodes]]
+id = "6666666666666666666666666666666666666666666666666666666666666666"
+role = "provider"
+capability_claims = ["GPU", "ZK_DEV"]
+signing_public_key = "34b4d9043156cb6dcf0beb0a2949b7559c940d2bcb6dbe8c53a9b30278e3a746"

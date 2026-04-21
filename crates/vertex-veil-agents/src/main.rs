@@ -1,7 +1,10 @@
 //! `vertex-veil-agents` binary entry point.
 //!
-//! Phase 3 wires the `demo` subcommand to the coordination runtime and the
-//! `verify` subcommand to the standalone verifier.
+//! Phase 3 wired the `demo` subcommand to the coordination runtime and the
+//! `verify` subcommand to the standalone verifier. Phase 4 hardens the
+//! bundle layout, persists aborts as a coherent artifact set, and adds
+//! directory versioning so the single-command judge flow does not destroy
+//! prior runs on replay.
 
 use std::process::ExitCode;
 
@@ -15,7 +18,7 @@ use vertex_veil_agents::{
 fn main() -> ExitCode {
     let cli = Cli::parse();
     match dispatch(cli) {
-        Ok(()) => ExitCode::SUCCESS,
+        Ok(code) => code,
         Err(err) => {
             eprintln!("vertex-veil-agents error: {err}");
             ExitCode::from(1)
@@ -23,7 +26,7 @@ fn main() -> ExitCode {
     }
 }
 
-fn dispatch(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
+fn dispatch(cli: Cli) -> Result<ExitCode, Box<dyn std::error::Error>> {
     match cli.command {
         Command::Demo {
             topology,
@@ -32,34 +35,52 @@ fn dispatch(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             artifacts,
             max_rounds,
             run_id,
+            force,
         } => {
-            let report = demo(DemoArgs {
+            let result = demo(DemoArgs {
                 topology,
                 private_intents,
                 scenario,
                 artifacts: artifacts.clone(),
                 max_rounds,
                 run_id: run_id.clone(),
+                force,
             })?;
+            if let Some(prev) = &result.rotated_prev {
+                eprintln!(
+                    "vertex-veil-agents: rotated prior bundle to {}",
+                    prev.display()
+                );
+            }
             eprintln!(
-                "vertex-veil-agents: demo run_id={} final_round={} valid={}{}",
+                "vertex-veil-agents: demo run_id={} final_round={} finalized={} valid={}{}{}",
                 run_id,
-                report.final_round.value(),
-                report.valid,
-                if report.reasons.is_empty() {
+                result.report.final_round.value(),
+                result.finalized,
+                result.report.valid,
+                match &result.abort_reason {
+                    Some(r) => format!(" abort_reason={r}"),
+                    None => String::new(),
+                },
+                if result.report.reasons.is_empty() {
                     String::new()
                 } else {
-                    format!(" reasons={:?}", report.reasons)
+                    format!(" reasons={:?}", result.report.reasons)
                 }
             );
-            if !report.valid {
+            if !result.report.valid {
                 return Err(format!(
                     "verifier rejected the demo log: {:?}",
-                    report.reasons
+                    result.report.reasons
                 )
                 .into());
             }
-            Ok(())
+            if !result.finalized {
+                // Aborted runs exit non-zero so CI / demo scripts can detect
+                // the threshold-exceeded path without parsing artifacts.
+                return Ok(ExitCode::from(2));
+            }
+            Ok(ExitCode::SUCCESS)
         }
         Command::Verify { artifacts } => {
             let report = verify(&artifacts)?;
@@ -81,7 +102,7 @@ fn dispatch(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
                 )
                 .into());
             }
-            Ok(())
+            Ok(ExitCode::SUCCESS)
         }
     }
 }

@@ -18,6 +18,9 @@ use clap::{Parser, Subcommand};
 pub mod private_intents;
 pub mod run;
 
+#[cfg(feature = "vertex-transport")]
+pub mod vertex_transport;
+
 /// Top-level CLI for `vertex-veil-agents`.
 #[derive(Debug, Parser)]
 #[command(
@@ -33,9 +36,9 @@ pub struct Cli {
 /// Subcommands exposed by the CLI.
 #[derive(Debug, Subcommand)]
 pub enum Command {
-    /// Run a demo coordination flow against a topology fixture. Writes the
-    /// coordination log, a copy of the topology, and a verifier report to
-    /// the artifact directory.
+    /// Run a demo coordination flow against a topology fixture. Writes a
+    /// full public artifact bundle (coordination log, verifier report, run
+    /// status, completion receipt, README) to the artifact directory.
     Demo {
         /// Topology configuration file (TOML).
         #[arg(long)]
@@ -55,6 +58,11 @@ pub enum Command {
         /// Optional run identifier (default: `veil-demo`).
         #[arg(long, default_value = "veil-demo")]
         run_id: String,
+        /// Overwrite the bundle in place instead of rotating the prior
+        /// bundle into `<artifacts>.prev-<N>`. Unrelated files are always
+        /// preserved; only files owned by this writer are replaced.
+        #[arg(long, default_value_t = false)]
+        force: bool,
     },
     /// Run the standalone verifier against a saved artifact directory.
     Verify {

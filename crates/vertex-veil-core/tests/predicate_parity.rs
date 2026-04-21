@@ -113,6 +113,7 @@ fn predicate_parity_noir_executes_for_every_accept_fixture() {
                     node_id: *node_id,
                     required_capability: required_capability.clone(),
                     budget_cents: Secret::new(1_000),
+                    signing_secret_key: None,
                 },
                 required_capability.clone(),
             ),
@@ -147,6 +148,7 @@ fn predicate_parity_noir_executes_for_every_accept_fixture() {
                 node_id: *node_id,
                 capability_claims: capability_claims.clone(),
                 reservation_cents: Secret::new(100),
+                signing_secret_key: None,
             },
             _ => panic!("accept fixture {:?} must carry provider role", fx.name),
         };
@@ -197,6 +199,7 @@ fn predicate_parity_noir_rejects_when_requester_round_tampered() {
         node_id,
         required_capability: CapabilityTag::parse_shape("GPU").unwrap(),
         budget_cents: Secret::new(500),
+        signing_secret_key: None,
     };
     let nonce = [0xa1; 32];
     // Build commitment bound to round 1 (mirrors the round_mismatch fixture's requester).

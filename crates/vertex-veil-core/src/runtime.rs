@@ -292,6 +292,9 @@ impl<T: CoordinationTransport> CoordinationRuntime<T> {
         }
 
         self.log.set_final_round(final_round, finalized);
+        if !finalized {
+            self.log.set_abort_reason("max_rounds_exceeded");
+        }
         Ok(RuntimeOutcome {
             log: self.log,
             finalized,
@@ -720,11 +723,37 @@ impl<T: CoordinationTransport> CoordinationRuntime<T> {
         proposal: &ProposalRecord,
     ) -> Result<(), RuntimeError> {
         let provider = proposal.candidate_provider;
-        let signature = synthetic_signature(provider, round, &proposal.matched_capability.to_string());
+        let capability = proposal.matched_capability.to_string();
+
+        // Prefer ed25519 when the provider has a signing seed configured.
+        // Fall back to the Phase 3 deterministic blake2s tag so legacy
+        // fixtures that predate Phase 4 keep working.
+        let signature_hex = match self
+            .agents
+            .get(&provider)
+            .and_then(|a| a.provider.as_ref())
+            .and_then(|i| i.signing_secret_key.as_ref())
+        {
+            Some(seed_secret) => {
+                let sig = crate::signing::sign_receipt_ed25519(
+                    seed_secret.expose(),
+                    provider,
+                    round,
+                    &capability,
+                );
+                hex::encode(sig)
+            }
+            None => hex::encode(crate::signing::legacy_signature(
+                provider,
+                round,
+                &capability,
+            )),
+        };
+
         let receipt = CompletionReceiptRecord {
             provider,
             round,
-            signature_hex: hex::encode(signature),
+            signature_hex,
         };
         self.transport.broadcast(CoordinationMessage {
             origin: provider,
@@ -941,21 +970,11 @@ fn tamper_public_inputs(hex: &str) -> String {
     hex::encode(bytes)
 }
 
-fn synthetic_signature(provider: NodeId, round: RoundId, capability: &str) -> [u8; 32] {
-    let mut h = Blake2s256::new();
-    h.update(b"vertex-veil/v1/completion-receipt");
-    h.update(provider.as_bytes());
-    h.update(round.value().to_be_bytes());
-    h.update(capability.as_bytes());
-    let d = h.finalize_fixed();
-    let mut out = [0u8; 32];
-    out.copy_from_slice(d.as_slice());
-    out
-}
-
-/// Verifier-facing: recompute the expected synthetic signature for a receipt.
+/// Verifier-facing: recompute the expected legacy (Phase 3) receipt
+/// signature tag. Only used when a topology has no `signing_public_key`;
+/// Phase 4 fixtures populate that field and the ed25519 path kicks in.
 pub fn expected_signature_hex(provider: NodeId, round: RoundId, capability: &str) -> String {
-    hex::encode(synthetic_signature(provider, round, capability))
+    hex::encode(crate::signing::legacy_signature(provider, round, capability))
 }
 
 fn round_error_code(err: &RoundError) -> &'static str {
@@ -1115,6 +1134,7 @@ capability_claims = ["CPU"]
                 node_id: NodeId::from_bytes([0x11; 32]),
                 required_capability: CapabilityTag::parse_shape("GPU").unwrap(),
                 budget_cents: Secret::new(1000),
+                signing_secret_key: None,
             }),
         );
         for (byte, claims, price) in [
@@ -1131,6 +1151,7 @@ capability_claims = ["CPU"]
                         .map(|c| CapabilityTag::parse_shape(c).unwrap())
                         .collect(),
                     reservation_cents: Secret::new(price),
+                    signing_secret_key: None,
                 }),
             );
         }

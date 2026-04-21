@@ -281,12 +281,34 @@ impl StandaloneVerifier {
             if r.signature_hex.is_empty() {
                 reasons.push("final_round_empty_signature".into());
             } else {
-                let expected = expected_signature_hex(
-                    proposal.candidate_provider,
-                    final_round,
-                    &proposal.matched_capability.to_string(),
-                );
-                if r.signature_hex != expected {
+                // Use ed25519 when the topology has a `signing_public_key`
+                // configured for the matched provider; otherwise fall back
+                // to the legacy deterministic tag for Phase 3 back-compat.
+                let provider_cfg = self
+                    .topology
+                    .nodes
+                    .iter()
+                    .find(|n| n.id == proposal.candidate_provider);
+                let cap_str = proposal.matched_capability.to_string();
+                let sig_ok = match provider_cfg.and_then(|n| n.signing_public_key) {
+                    Some(pk) => crate::signing::verify_receipt_ed25519(
+                        &pk,
+                        &r.signature_hex,
+                        proposal.candidate_provider,
+                        final_round,
+                        &cap_str,
+                    )
+                    .is_ok(),
+                    None => {
+                        let expected = expected_signature_hex(
+                            proposal.candidate_provider,
+                            final_round,
+                            &cap_str,
+                        );
+                        r.signature_hex == expected
+                    }
+                };
+                if !sig_ok {
                     reasons.push("final_round_signature_mismatch".into());
                 }
             }
@@ -396,6 +418,7 @@ capability_claims = ["CPU"]
                 node_id: NodeId::from_bytes([0x11; 32]),
                 required_capability: CapabilityTag::parse_shape("GPU").unwrap(),
                 budget_cents: Secret::new(1000),
+                signing_secret_key: None,
             }),
         );
         for (b, cs) in [(0x22u8, vec!["GPU"]), (0x33u8, vec!["GPU"]), (0x44u8, vec!["CPU"])] {
@@ -408,6 +431,7 @@ capability_claims = ["CPU"]
                         .map(|c| CapabilityTag::parse_shape(c).unwrap())
                         .collect(),
                     reservation_cents: Secret::new(100),
+                    signing_secret_key: None,
                 }),
             );
         }

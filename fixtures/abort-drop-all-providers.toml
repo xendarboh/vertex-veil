@@ -1,0 +1,37 @@
+# Phase 4 abort scenario.
+#
+# Exercises the "mid-round drop beyond the recoverable threshold" path: all
+# three providers go silent after round 0, and the matched provider's
+# round-0 proof is invalid. The runtime:
+#
+#   round 0: invalid proof -> round fails, fall back
+#   round 1: providers silent -> no feasible provider -> fall back
+#   round 2: providers silent -> no feasible provider -> fall back
+#   round 3: providers silent -> no feasible provider -> fall back
+#   max_rounds (4) exhausted without finalization -> verifiable abort
+#
+# The demo writes `run_status.json` with `finalized = false` and an
+# `abort_reason`. The verifier accepts the coherent abort bundle but the
+# demo binary exits non-zero.
+
+version = 1
+
+[[events]]
+kind = "inject_invalid_proof"
+node = "2222222222222222222222222222222222222222222222222222222222222222"
+round = 0
+
+[[events]]
+kind = "drop_node"
+node = "2222222222222222222222222222222222222222222222222222222222222222"
+after_round = 0
+
+[[events]]
+kind = "drop_node"
+node = "3333333333333333333333333333333333333333333333333333333333333333"
+after_round = 0
+
+[[events]]
+kind = "drop_node"
+node = "4444444444444444444444444444444444444444444444444444444444444444"
+after_round = 0

@@ -1,0 +1,15 @@
+# Phase 4 fallback-recovery scenario.
+#
+# Round 0's matched provider publishes an invalid proof; the round fails
+# and the protocol advances to round 1. Round 1 has no adversarial events,
+# so the protocol finalizes cleanly with the next proposer rotation.
+#
+# Used by the Phase 4 demo test matrix to prove the fallback path in a
+# judge-visible artifact bundle.
+
+version = 1
+
+[[events]]
+kind = "inject_invalid_proof"
+node = "2222222222222222222222222222222222222222222222222222222222222222"
+round = 0

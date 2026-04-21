@@ -35,7 +35,7 @@ use std::path::{Component, Path};
 use serde::Deserialize;
 use vertex_veil_core::{
     AgentState, CapabilityTag, NodeId, PrivateProviderIntent, PrivateRequesterIntent, Role,
-    Secret, TopologyConfig,
+    Secret, SigningSecretSeed, TopologyConfig,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -64,6 +64,10 @@ pub enum PrivateIntentError {
     MissingWitness(String, &'static str),
     #[error("topology has a node with no private-intent entry: {0}")]
     MissingAgent(String),
+    #[error("invalid ed25519 signing_secret_key for node id: {0}")]
+    BadSigningKey(String),
+    #[error("signing_secret_key for node id {0} does not match topology signing_public_key")]
+    SigningKeyMismatch(String),
 }
 
 #[derive(Debug, Deserialize)]
@@ -85,6 +89,12 @@ struct RawAgent {
     budget_cents: Option<u64>,
     #[serde(default)]
     reservation_cents: Option<u64>,
+    /// Hex-encoded ed25519 signing seed (32 bytes). Optional for Phase 3
+    /// back-compat. When present, the topology MUST also carry the matching
+    /// `signing_public_key` for the same node, and the key pair is
+    /// cross-validated at load time.
+    #[serde(default)]
+    signing_secret_key: Option<String>,
 }
 
 /// Load a private-intent bundle and cross-validate it against the topology.
@@ -136,6 +146,20 @@ pub fn from_toml_str(
             return Err(PrivateIntentError::RoleMismatch(node.to_hex()));
         }
 
+        let seed = match raw.signing_secret_key {
+            None => None,
+            Some(hex_s) => {
+                let s = SigningSecretSeed::from_hex(&hex_s)
+                    .map_err(|_| PrivateIntentError::BadSigningKey(node.to_hex()))?;
+                if let Some(topo_pk) = topology_node.signing_public_key {
+                    if s.public() != topo_pk {
+                        return Err(PrivateIntentError::SigningKeyMismatch(node.to_hex()));
+                    }
+                }
+                Some(s)
+            }
+        };
+
         let agent = match topology_node.role {
             Role::Requester => {
                 let cap = raw
@@ -158,6 +182,7 @@ pub fn from_toml_str(
                     node_id: node,
                     required_capability: cap,
                     budget_cents: Secret::new(budget),
+                    signing_secret_key: seed.map(Secret::new),
                 })
             }
             Role::Provider => {
@@ -181,6 +206,7 @@ pub fn from_toml_str(
                     node_id: node,
                     capability_claims: claims,
                     reservation_cents: Secret::new(reservation),
+                    signing_secret_key: seed.map(Secret::new),
                 })
             }
         };
@@ -206,16 +232,47 @@ fn parse_role(s: &str) -> Option<Role> {
 }
 
 fn redact_parse_error(raw: &str) -> PrivateIntentError {
-    // Strip TOML's source-echo section (pipe-prefixed lines) so the error
-    // does not surface private field values from the malformed file.
-    let cleaned: String = raw
+    // Strip TOML's source-echo section (pipe-prefixed lines), then collapse
+    // any remaining quoted substrings so the error does not surface the
+    // private field VALUE the user typed. TOML's "invalid type" diagnostic
+    // includes the literal like `string "SECRET-99999"` in the top line
+    // even though the pipe-line echo has been removed; blanking quoted
+    // substrings out keeps the field name (and the location header) while
+    // dropping the value.
+    let mut cleaned: String = raw
         .lines()
         .filter(|l| !l.contains('|'))
         .map(str::trim)
         .filter(|l| !l.is_empty())
         .collect::<Vec<_>>()
         .join(" ");
+    cleaned = redact_quoted(&cleaned);
     PrivateIntentError::Parse(cleaned)
+}
+
+fn redact_quoted(s: &str) -> String {
+    // Replace any contiguous `"..."` substring with `"[REDACTED]"`. This is
+    // a structural redaction: single or double quotes wrapping an arbitrary
+    // payload. Keeps the field label visible in the error but not the
+    // would-be-private value.
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '"' || c == '\'' {
+            let quote = c;
+            out.push_str("\"[REDACTED]\"");
+            // Advance past the closing quote (or to end of input).
+            while let Some(&nc) = chars.peek() {
+                chars.next();
+                if nc == quote {
+                    break;
+                }
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out
 }
 
 fn redact_tail(s: &str) -> String {

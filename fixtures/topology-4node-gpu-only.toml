@@ -1,5 +1,10 @@
+# Subset-tag variant of the 4-node baseline: the runtime-configured
+# capability tag set contains ONLY "GPU", and every node uses it. Phase 4
+# edge-case fixture proving that the illustrative tag set can be narrowed
+# without breaking the protocol flow.
+
 version = 1
-capability_tags = ["GPU", "CPU", "LLM", "ZK_DEV"]
+capability_tags = ["GPU"]
 
 [[nodes]]
 id = "1111111111111111111111111111111111111111111111111111111111111111"
@@ -10,7 +15,7 @@ signing_public_key = "d04ab232742bb4ab3a1368bd4615e4e6d0224ab71a016baf8520a332c9
 [[nodes]]
 id = "2222222222222222222222222222222222222222222222222222222222222222"
 role = "provider"
-capability_claims = ["GPU", "LLM"]
+capability_claims = ["GPU"]
 signing_public_key = "a09aa5f47a6759802ff955f8dc2d2a14a5c99d23be97f864127ff9383455a4f0"
 
 [[nodes]]
@@ -22,5 +27,5 @@ signing_public_key = "17cb79fb2b4120f2b1ec65e4198d6e08b28e813feb01e4a400839b85e1
 [[nodes]]
 id = "4444444444444444444444444444444444444444444444444444444444444444"
 role = "provider"
-capability_claims = ["CPU"]
+capability_claims = ["GPU"]
 signing_public_key = "d759793bbc13a2819a827c76adb6fba8a49aee007f49f2d0992d99b825ad2c48"

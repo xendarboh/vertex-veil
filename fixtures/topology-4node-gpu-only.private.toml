@@ -1,18 +1,3 @@
-# Private witness fixture matched to fixtures/topology-4node.toml.
-#
-# This file is demo-only. In a real deployment each agent holds its own
-# private intent locally and never ships it alongside the topology. The
-# coordination log produced by the runtime does not include any of these
-# values; the redaction is enforced by `vertex-veil-core`'s `Secret<T>`
-# wrapper plus the serialization leak tests in
-# `crates/vertex-veil-core/tests/runtime_log.rs`.
-#
-# Each agent also carries a 32-byte ed25519 `signing_secret_key` whose
-# public counterpart is pinned in the topology file above. Receipts are
-# signed with this key; the verifier checks the signature against the
-# topology's `signing_public_key` using the canonical payload defined in
-# `crates/vertex-veil-core/src/signing.rs`.
-
 version = 1
 
 [[agents]]
@@ -25,7 +10,7 @@ signing_secret_key = "1111111111111111111111111111111111111111111111111111111111
 [[agents]]
 node = "2222222222222222222222222222222222222222222222222222222222222222"
 role = "provider"
-capability_claims = ["GPU", "LLM"]
+capability_claims = ["GPU"]
 reservation_cents = 500
 signing_secret_key = "2222222222222222222222222222222222222222222222222222222222222222"
 
@@ -39,6 +24,6 @@ signing_secret_key = "3333333333333333333333333333333333333333333333333333333333
 [[agents]]
 node = "4444444444444444444444444444444444444444444444444444444444444444"
 role = "provider"
-capability_claims = ["CPU"]
+capability_claims = ["GPU"]
 reservation_cents = 200
 signing_secret_key = "4444444444444444444444444444444444444444444444444444444444444444"

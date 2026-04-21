@@ -101,6 +101,7 @@ fn baseline_agents() -> BTreeMap<NodeId, AgentState> {
             node_id: NodeId::from_bytes([0x11; 32]),
             required_capability: CapabilityTag::parse_shape("GPU").unwrap(),
             budget_cents: Secret::new(1000),
+            signing_secret_key: None,
         }),
     );
     for (b, claims, price) in [
@@ -117,6 +118,7 @@ fn baseline_agents() -> BTreeMap<NodeId, AgentState> {
                     .map(|c| CapabilityTag::parse_shape(c).unwrap())
                     .collect(),
                 reservation_cents: Secret::new(price),
+                signing_secret_key: None,
             }),
         );
     }

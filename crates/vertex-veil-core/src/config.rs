@@ -37,6 +37,7 @@ use serde::{Deserialize, Serialize};
 use crate::capability::{CapabilityTag, CapabilityTagSet};
 use crate::error::ConfigError;
 use crate::keys::NodeId;
+use crate::signing::SigningPublicKey;
 
 /// Node role in a Vertex Veil run.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -55,6 +56,10 @@ struct NodeConfigRaw {
     required_capability: Option<String>,
     #[serde(default)]
     capability_claims: Option<Vec<String>>,
+    /// Hex-encoded ed25519 verifying key. Optional for back-compat with
+    /// Phase 3 fixtures; required in Phase 4 fixtures.
+    #[serde(default)]
+    signing_public_key: Option<String>,
 }
 
 /// Fully validated node configuration.
@@ -68,6 +73,39 @@ pub struct NodeConfig {
     /// Present for providers only.
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub capability_claims: Vec<CapabilityTag>,
+    /// Ed25519 verifying key used to check the completion receipt signature.
+    /// Stored as a 32-byte curve point; serialized as hex in TOML/JSON.
+    /// Optional so Phase 3 fixtures keep working against the legacy blake2s
+    /// path; Phase 4 fixtures populate this.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_pubkey",
+        deserialize_with = "deserialize_pubkey"
+    )]
+    pub signing_public_key: Option<SigningPublicKey>,
+}
+
+fn serialize_pubkey<S: serde::Serializer>(
+    v: &Option<SigningPublicKey>,
+    s: S,
+) -> Result<S::Ok, S::Error> {
+    match v {
+        Some(pk) => s.serialize_str(&pk.to_hex()),
+        None => s.serialize_none(),
+    }
+}
+
+fn deserialize_pubkey<'de, D: serde::Deserializer<'de>>(
+    d: D,
+) -> Result<Option<SigningPublicKey>, D::Error> {
+    let opt: Option<String> = Option::deserialize(d)?;
+    match opt {
+        None => Ok(None),
+        Some(s) => SigningPublicKey::from_hex(&s)
+            .map(Some)
+            .map_err(serde::de::Error::custom),
+    }
 }
 
 /// Raw topology shape used for deserialization.
@@ -186,11 +224,22 @@ impl TopologyConfig {
                 Role::Provider => provider_count += 1,
             }
 
+            let signing_public_key = match node_raw.signing_public_key {
+                None => None,
+                Some(hex_s) => Some(SigningPublicKey::from_hex(&hex_s).map_err(|_| {
+                    ConfigError::InvalidTopology(format!(
+                        "invalid signing_public_key for node {}",
+                        id.to_hex()
+                    ))
+                })?),
+            };
+
             nodes.push(NodeConfig {
                 id,
                 role: node_raw.role,
                 required_capability,
                 capability_claims,
+                signing_public_key,
             });
         }
 

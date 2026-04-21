@@ -61,6 +61,7 @@ fn mk_requester_commit(round: RoundId, budget: u64) -> CommitmentRecord {
         node_id: NodeId::from_bytes([0x11; 32]),
         required_capability: gpu(),
         budget_cents: Secret::new(budget),
+        signing_secret_key: None,
     };
     let nonce = derive_test_nonce(intent.node_id, round, b"requester");
     let bytes = commit_requester(&intent, &nonce, round).unwrap();
@@ -86,6 +87,7 @@ fn mk_provider_commit(
         node_id: node,
         capability_claims: claims.clone(),
         reservation_cents: Secret::new(reservation),
+        signing_secret_key: None,
     };
     let nonce = derive_test_nonce(node, round, b"provider");
     let bytes = commit_provider(&intent, &nonce, round).unwrap();

@@ -62,6 +62,7 @@ fn req_intent(budget: u64, cap: &str) -> PrivateRequesterIntent {
         node_id: NodeId::from_bytes([0x11; 32]),
         required_capability: CapabilityTag::parse_shape(cap).unwrap(),
         budget_cents: Secret::new(budget),
+        signing_secret_key: None,
     }
 }
 
@@ -73,6 +74,7 @@ fn prov_intent(reservation: u64, claims: &[&str]) -> PrivateProviderIntent {
             .map(|c| CapabilityTag::parse_shape(c).unwrap())
             .collect(),
         reservation_cents: Secret::new(reservation),
+        signing_secret_key: None,
     }
 }
 
