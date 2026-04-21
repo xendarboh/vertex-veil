@@ -1,9 +1,9 @@
-# Noir Circuits (Phase 2+)
+# Noir Circuits
 
-Phase 0 reserves this directory for the per-agent Noir circuits introduced in
-Phase 2 of `intent/plan.md`. No circuits live here yet.
+This workspace now contains the Phase 2 Noir circuits used by the Rust bridge
+and parity tests.
 
-Planned layout once Phase 2 lands:
+Layout:
 
 ```
 circuits/
@@ -14,3 +14,16 @@ circuits/
 
 The Rust side of the predicate (shared parity fixtures) lives in
 `crates/vertex-veil-core`.
+
+Compiled circuit JSON artifacts are generated into `circuits/target/` and are
+not checked into git. Recreate them with:
+
+```bash
+nargo compile --workspace
+```
+
+Run all Noir tests with:
+
+```bash
+nargo test --workspace
+```
