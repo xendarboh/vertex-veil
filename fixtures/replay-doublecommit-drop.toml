@@ -1,0 +1,44 @@
+# Phase 3 adversarial scenario.
+#
+# This scenario references the stable public keys defined in
+# fixtures/topology-4node.toml. It exercises every adversarial path
+# enumerated by Phase 3 of the plan:
+#
+# - double_commit:            node 0x22 tries to commit twice in round 0
+# - inject_invalid_proof:     node 0x22 (proposer for round 0) broadcasts a
+#                             proof whose public inputs do not match its
+#                             logged commitment, forcing a fallback to
+#                             round 1
+# - replay_prior_commitment:  node 0x33 republishes its round-0 commitment
+#                             in round 1, which the round machine rejects
+#                             as a replay before the round finalizes
+# - drop_node:                node 0x44 stops participating after round 0;
+#                             its silence does not prevent the swarm from
+#                             finalizing in round 1
+#
+# The coordination runtime must visibly reject each adversarial attempt
+# in the log's `rejections` array and still finalize a valid round using
+# the remaining honest participants.
+
+version = 1
+
+[[events]]
+kind = "double_commit"
+node = "2222222222222222222222222222222222222222222222222222222222222222"
+round = 0
+
+[[events]]
+kind = "inject_invalid_proof"
+node = "2222222222222222222222222222222222222222222222222222222222222222"
+round = 0
+
+[[events]]
+kind = "replay_prior_commitment"
+node = "3333333333333333333333333333333333333333333333333333333333333333"
+round = 1
+from_round = 0
+
+[[events]]
+kind = "drop_node"
+node = "4444444444444444444444444444444444444444444444444444444444444444"
+after_round = 0

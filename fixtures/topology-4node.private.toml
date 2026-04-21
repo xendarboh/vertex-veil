@@ -1,0 +1,34 @@
+# Private witness fixture matched to fixtures/topology-4node.toml.
+#
+# This file is demo-only. In a real deployment each agent holds its own
+# private intent locally and never ships it alongside the topology. The
+# coordination log produced by the runtime does not include any of these
+# values; the redaction is enforced by `vertex-veil-core`'s `Secret<T>`
+# wrapper plus the serialization leak tests in
+# `crates/vertex-veil-core/tests/runtime_log.rs`.
+
+version = 1
+
+[[agents]]
+node = "1111111111111111111111111111111111111111111111111111111111111111"
+role = "requester"
+required_capability = "GPU"
+budget_cents = 1000
+
+[[agents]]
+node = "2222222222222222222222222222222222222222222222222222222222222222"
+role = "provider"
+capability_claims = ["GPU", "LLM"]
+reservation_cents = 500
+
+[[agents]]
+node = "3333333333333333333333333333333333333333333333333333333333333333"
+role = "provider"
+capability_claims = ["GPU"]
+reservation_cents = 450
+
+[[agents]]
+node = "4444444444444444444444444444444444444444444444444444444444444444"
+role = "provider"
+capability_claims = ["CPU"]
+reservation_cents = 200

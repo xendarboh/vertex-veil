@@ -24,6 +24,7 @@ fn cli_bootstrap_parses_demo_subcommand() {
             topology,
             scenario,
             artifacts,
+            ..
         } => {
             assert_eq!(topology, PathBuf::from("fixtures/topology-4node.toml"));
             assert_eq!(artifacts, PathBuf::from("artifacts/phase0"));

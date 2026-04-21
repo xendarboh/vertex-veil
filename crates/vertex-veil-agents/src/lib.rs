@@ -1,12 +1,22 @@
-//! CLI bootstrap for the Vertex Veil agent binary.
+//! CLI surface for the Vertex Veil agent binary.
 //!
-//! Phase 0 scope is limited to command-line argument parsing and the
-//! subcommand shape that later phases will fill in. No Vertex network
-//! behavior, no proof generation, and no verifier logic live here yet.
+//! Phase 3 fills this in: the `demo` subcommand spins up a Vertex-ordered
+//! coordination runtime and persists a public artifact bundle, and the
+//! `verify` subcommand reads that bundle with the standalone verifier.
+//!
+//! # Scope
+//!
+//! This module exposes [`Cli`] / [`Command`] and helpers used to drive the
+//! runtime from a single-process binary. The core protocol logic lives in
+//! `vertex-veil-core::runtime`; nothing in here depends on a specific
+//! transport implementation.
 
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
+
+pub mod private_intents;
+pub mod run;
 
 /// Top-level CLI for `vertex-veil-agents`.
 #[derive(Debug, Parser)]
@@ -23,22 +33,32 @@ pub struct Cli {
 /// Subcommands exposed by the CLI.
 #[derive(Debug, Subcommand)]
 pub enum Command {
-    /// Run a demo coordination flow against a topology fixture. Phase 0
-    /// registers the subcommand shape; subsequent phases implement behavior.
+    /// Run a demo coordination flow against a topology fixture. Writes the
+    /// coordination log, a copy of the topology, and a verifier report to
+    /// the artifact directory.
     Demo {
         /// Topology configuration file (TOML).
         #[arg(long)]
         topology: PathBuf,
+        /// Private-intent fixture (TOML) matched to the topology.
+        #[arg(long)]
+        private_intents: Option<PathBuf>,
         /// Optional adversarial scenario file (TOML).
         #[arg(long)]
         scenario: Option<PathBuf>,
         /// Directory to write public coordination artifacts into.
         #[arg(long)]
         artifacts: PathBuf,
+        /// Max fallback rounds before aborting. Defaults to 4.
+        #[arg(long, default_value_t = 4)]
+        max_rounds: u64,
+        /// Optional run identifier (default: `veil-demo`).
+        #[arg(long, default_value = "veil-demo")]
+        run_id: String,
     },
     /// Run the standalone verifier against a saved artifact directory.
     Verify {
-        /// Directory containing a coordination log and proofs.
+        /// Directory containing a coordination log and its topology.
         #[arg(long)]
         artifacts: PathBuf,
     },

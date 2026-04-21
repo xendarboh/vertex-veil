@@ -16,3 +16,7 @@ path = "src/main.rs"
 vertex-veil-core = { path = "../vertex-veil-core" }
 clap = { workspace = true }
 thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+hex = { workspace = true }

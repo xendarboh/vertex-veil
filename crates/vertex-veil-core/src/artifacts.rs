@@ -65,6 +65,26 @@ pub struct CompletionReceiptRecord {
     pub signature_hex: String,
 }
 
+/// Rejection record. Captures an adversarial or malformed message that the
+/// runtime refused to accept, so the coordination log carries a visible
+/// forensic trace usable by the standalone verifier.
+///
+/// `kind` is a short machine-readable label for the rejected message class
+/// (`"commitment"`, `"proposal"`, `"proof"`, `"receipt"`). `reason_code` is a
+/// short machine-readable tag matching the protocol denial code family
+/// (e.g. `"duplicate_commitment"`, `"replay_detected"`, `"wrong_proposer"`,
+/// `"invalid_proof"`).
+///
+/// A rejection record never carries private witness values. When the reason
+/// would otherwise echo private data, it is replaced by its tag.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RejectionRecord {
+    pub round: RoundId,
+    pub node_id: NodeId,
+    pub kind: String,
+    pub reason_code: String,
+}
+
 /// Verifier report. Emitted by a standalone third-party verifier that reads
 /// the public coordination log and decides whether the run is valid.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -84,6 +104,20 @@ pub struct CoordinationLog {
     pub proposals: Vec<ProposalRecord>,
     pub proofs: Vec<ProofArtifactRecord>,
     pub receipts: Vec<CompletionReceiptRecord>,
+    /// Forensic trace of rejected messages. Empty on a purely happy-path run;
+    /// populated when adversarial or malformed inputs were refused. Written
+    /// and read with `serde(default)` so a v1 log without this field still
+    /// deserializes.
+    #[serde(default)]
+    pub rejections: Vec<RejectionRecord>,
+    /// Round at which the run ended. For a finalized happy-path run, this is
+    /// the round whose proposal produced a completion receipt. For an aborted
+    /// run, this is the last attempted round. Defaulted for backward compat.
+    #[serde(default)]
+    pub final_round: RoundId,
+    /// True when the run produced a valid completion receipt on `final_round`.
+    #[serde(default)]
+    pub finalized: bool,
     #[serde(skip_serializing, skip_deserializing)]
     commitment_keys: BTreeSet<(NodeId, RoundId)>,
 }
@@ -97,6 +131,9 @@ impl CoordinationLog {
             proposals: Vec::new(),
             proofs: Vec::new(),
             receipts: Vec::new(),
+            rejections: Vec::new(),
+            final_round: RoundId::new(0),
+            finalized: false,
             commitment_keys: BTreeSet::new(),
         }
     }
@@ -124,6 +161,15 @@ impl CoordinationLog {
 
     pub fn append_receipt(&mut self, r: CompletionReceiptRecord) {
         self.receipts.push(r);
+    }
+
+    pub fn append_rejection(&mut self, r: RejectionRecord) {
+        self.rejections.push(r);
+    }
+
+    pub fn set_final_round(&mut self, round: RoundId, finalized: bool) {
+        self.final_round = round;
+        self.finalized = finalized;
     }
 
     /// Recompute internal commitment-key index from the public vector.
@@ -194,6 +240,17 @@ impl ArtifactWriter {
     pub fn dir(&self) -> &Path {
         &self.dir
     }
+}
+
+/// Read a coordination log from `<dir>/coordination_log.json`. Re-indexes the
+/// internal commitment-key set after deserialization.
+pub fn read_coordination_log(dir: &Path) -> Result<CoordinationLog, ArtifactError> {
+    let path = dir.join("coordination_log.json");
+    let text = fs::read_to_string(&path).map_err(ArtifactError::io)?;
+    let mut log: CoordinationLog =
+        serde_json::from_str(&text).map_err(ArtifactError::serialization)?;
+    log.reindex()?;
+    Ok(log)
 }
 
 fn validate_output_path(path: &Path) -> Result<(), ArtifactError> {

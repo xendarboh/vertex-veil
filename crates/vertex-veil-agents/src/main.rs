@@ -1,19 +1,20 @@
 //! `vertex-veil-agents` binary entry point.
 //!
-//! Phase 0 only validates topology configuration on the `demo` path and
-//! confirms the `verify` path receives a directory. Subsequent phases wire
-//! the Vertex runtime, proof generation, and verifier logic.
+//! Phase 3 wires the `demo` subcommand to the coordination runtime and the
+//! `verify` subcommand to the standalone verifier.
 
 use std::process::ExitCode;
 
 use clap::Parser;
 
-use vertex_veil_agents::{Cli, Command};
-use vertex_veil_core::{ArtifactWriter, TopologyConfig};
+use vertex_veil_agents::{
+    run::{demo, verify, DemoArgs},
+    Cli, Command,
+};
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
-    match run(cli) {
+    match dispatch(cli) {
         Ok(()) => ExitCode::SUCCESS,
         Err(err) => {
             eprintln!("vertex-veil-agents error: {err}");
@@ -22,38 +23,64 @@ fn main() -> ExitCode {
     }
 }
 
-fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
+fn dispatch(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     match cli.command {
         Command::Demo {
             topology,
+            private_intents,
             scenario,
             artifacts,
+            max_rounds,
+            run_id,
         } => {
-            let _cfg = TopologyConfig::load(&topology)?;
-            let _writer = ArtifactWriter::new(&artifacts)?;
+            let report = demo(DemoArgs {
+                topology,
+                private_intents,
+                scenario,
+                artifacts: artifacts.clone(),
+                max_rounds,
+                run_id: run_id.clone(),
+            })?;
             eprintln!(
-                "vertex-veil-agents: Phase 0 bootstrap — topology {} loaded, artifacts dir {} ready{}",
-                topology.display(),
-                artifacts.display(),
-                match &scenario {
-                    Some(s) => format!(", scenario {}", s.display()),
-                    None => String::new(),
+                "vertex-veil-agents: demo run_id={} final_round={} valid={}{}",
+                run_id,
+                report.final_round.value(),
+                report.valid,
+                if report.reasons.is_empty() {
+                    String::new()
+                } else {
+                    format!(" reasons={:?}", report.reasons)
                 }
             );
-            Ok(())
-        }
-        Command::Verify { artifacts } => {
-            if !artifacts.is_dir() {
+            if !report.valid {
                 return Err(format!(
-                    "verify: artifacts path is not a directory: {}",
-                    artifacts.display()
+                    "verifier rejected the demo log: {:?}",
+                    report.reasons
                 )
                 .into());
             }
+            Ok(())
+        }
+        Command::Verify { artifacts } => {
+            let report = verify(&artifacts)?;
             eprintln!(
-                "vertex-veil-agents: Phase 0 bootstrap — verify stub for {}",
-                artifacts.display()
+                "vertex-veil-agents: verify run_id={} final_round={} valid={}{}",
+                report.run_id,
+                report.final_round.value(),
+                report.valid,
+                if report.reasons.is_empty() {
+                    String::new()
+                } else {
+                    format!(" reasons={:?}", report.reasons)
+                }
             );
+            if !report.valid {
+                return Err(format!(
+                    "verifier rejected the persisted log: {:?}",
+                    report.reasons
+                )
+                .into());
+            }
             Ok(())
         }
     }

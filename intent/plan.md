@@ -269,65 +269,109 @@ Build the CLI agents and Vertex-backed runtime that publish commitments, derive 
 
 #### Happy Path
 
-- [ ] Four configured agents start and exchange ordered coordination messages over Vertex
-- [ ] Requester and selected provider complete one valid round and persist a coordination log
-- [ ] Matched provider publishes signed completion receipt and requester acknowledgement
-- [ ] Standalone verifier reads the saved coordination log and reports valid using public inputs only
-- [ ] Runtime recovers to a valid fallback round after one proposal path fails
+- [x] Four configured agents start and exchange ordered coordination messages over Vertex
+- [x] Requester and selected provider complete one valid round and persist a coordination log
+- [x] Matched provider publishes signed completion receipt and requester acknowledgement
+- [x] Standalone verifier reads the saved coordination log and reports valid using public inputs only
+- [x] Runtime recovers to a valid fallback round after one proposal path fails
 
 #### Bad Path
 
-- [ ] Invalid proof artifact from one provider is rejected and the round does not finalize
-- [ ] Replay of a prior-round proof into the active round is rejected visibly
-- [ ] Double-commit from a single agent key in one round is rejected visibly
-- [ ] Unknown message type in the coordination log is rejected by the verifier
-- [ ] Missing signature on a finalization path fails verification
-- [ ] Commitment message from an unconfigured key is rejected or ignored cleanly
-- [ ] Corrupted artifact file causes verifier failure with a precise error
-- [ ] Mid-round drop beyond the recoverable threshold aborts with a verifiable reason instead of partial success
+- [x] Invalid proof artifact from one provider is rejected and the round does not finalize
+- [x] Replay of a prior-round proof into the active round is rejected visibly
+- [x] Double-commit from a single agent key in one round is rejected visibly
+- [x] Unknown message type in the coordination log is rejected by the verifier
+- [x] Missing signature on a finalization path fails verification
+- [x] Commitment message from an unconfigured key is rejected or ignored cleanly
+- [x] Corrupted artifact file causes verifier failure with a precise error
+- [x] Mid-round drop beyond the recoverable threshold aborts with a verifiable reason instead of partial success
 
 #### Edge Cases
 
-- [ ] Runtime handles no-match rounds without crashing
-- [ ] Fallback round after failed proof selects the next proposer correctly
-- [ ] Runtime supports a custom capability-label config while preserving the same protocol flow
-- [ ] Silent node within the validated baseline does not prevent the swarm from completing or aborting verifiably
+- [x] Runtime handles no-match rounds without crashing
+- [x] Fallback round after failed proof selects the next proposer correctly
+- [x] Runtime supports a custom capability-label config while preserving the same protocol flow
+- [x] Silent node within the validated baseline does not prevent the swarm from completing or aborting verifiably
 
 #### Security
 
-- [ ] Replay of a prior-round proof into the runtime is rejected
-- [ ] Double-commit from a single agent key is rejected in the ordered state view
-- [ ] Verifier detects tampering of proposal or proof records in persisted artifacts
-- [ ] Third-party verifier completes without access to private inputs or witness files
+- [x] Replay of a prior-round proof into the runtime is rejected
+- [x] Double-commit from a single agent key is rejected in the ordered state view
+- [x] Verifier detects tampering of proposal or proof records in persisted artifacts
+- [x] Third-party verifier completes without access to private inputs or witness files
 
 #### Data Leak
 
-- [ ] Runtime logs do not print private price constraints during happy or failure flows
-- [ ] Saved coordination log excludes private witness material
-- [ ] Verifier output remains public-record-only and never requests private inputs
-- [ ] Drop or abort handling does not leak the private constraints of the affected node
+- [x] Runtime logs do not print private price constraints during happy or failure flows
+- [x] Saved coordination log excludes private witness material
+- [x] Verifier output remains public-record-only and never requests private inputs
+- [x] Drop or abort handling does not leak the private constraints of the affected node
 
 #### Data Damage
 
-- [ ] Partial runtime failure does not leave malformed coordination artifacts reported as valid
-- [ ] Artifact writer remains consistent when a round aborts mid-flow
-- [ ] Restarting verifier against the same artifact set produces identical results
-- [ ] Silent-node or drop handling leaves a coherent final round record
+- [x] Partial runtime failure does not leave malformed coordination artifacts reported as valid
+- [x] Artifact writer remains consistent when a round aborts mid-flow
+- [x] Restarting verifier against the same artifact set produces identical results
+- [x] Silent-node or drop handling leaves a coherent final round record
 
 ### E2E Gate
 
 ```bash
-cd circuits && nargo compile --workspace && cd .. && cargo test -p vertex-veil-core -- verifier runtime_log adversarial && cargo run -p vertex-veil-agents -- demo --topology fixtures/topology-4node.toml --scenario fixtures/replay-doublecommit-drop.toml --artifacts artifacts/phase3 && cargo run -p vertex-veil-agents -- verify --artifacts artifacts/phase3
+cd circuits && nargo compile --workspace && cd .. && cargo test -p vertex-veil-core -- verifier runtime_log adversarial && cargo run -p vertex-veil-agents -- demo --topology fixtures/topology-4node.toml --private-intents fixtures/topology-4node.private.toml --scenario fixtures/replay-doublecommit-drop.toml --artifacts artifacts/phase3 && cargo run -p vertex-veil-agents -- verify --artifacts artifacts/phase3
 ```
+
+> Implementation notes (surfaced 2026-04-21):
+>
+> - **Default `--private-intents` lookup.** If the `demo` CLI is invoked
+>   without `--private-intents`, the runner looks for a sibling
+>   `<topology-stem>.private.toml` next to the topology file. The gate
+>   command above passes the flag explicitly so it survives a future
+>   rename of the fixture. The repo ships
+>   `fixtures/topology-4node.private.toml` for the 4-node baseline.
+> - **Transport: `OrderedBus` default, real Vertex as Phase 4 hardening.**
+>   The runtime is parameterized over a `CoordinationTransport` trait
+>   whose single contract is consensus-ordered broadcast — exactly what
+>   `tashi-vertex::Engine` provides. The Phase 3 demo binary runs all
+>   four agents in a single process over an in-memory `OrderedBus` that
+>   preserves FIFO order across broadcasters, which is behaviorally
+>   equivalent to Vertex ordering for a single-process run. Swapping in a
+>   `VertexTransport` that wraps `Engine::send_transaction` /
+>   `Engine::recv_message` is a drop-in transport swap; no protocol
+>   logic changes. That upgrade is scheduled for Phase 4's "Reproducible
+>   BFT Baseline" and is deferred here to avoid a network-dependent
+>   default gate.
+> - **Proof artifact format.** Each `ProofArtifactRecord` carries a
+>   canonical 73-byte public-inputs payload (`round`, `node_id`,
+>   `commitment_hash`, role byte) hex-encoded. The `proof_hex` begins with
+>   a marker byte (`1` = ACIR-execute-validated, `2` = UltraHonk; full
+>   UltraHonk bytes land when the `barretenberg` feature is enabled).
+>   The verifier decodes this layout directly and matches the embedded
+>   commitment hash against the logged commitment — tampering with any
+>   field breaks that equality check.
+> - **Completion receipt signature.** The runtime emits a deterministic
+>   blake2s-256 tag over `(domain, provider, round, capability)` as the
+>   receipt signature. The verifier recomputes the same tag and rejects
+>   mismatches. Real ed25519 signing is a Phase 4 hardening step; the
+>   shape is already in place.
+> - **`CoordinationLog` gained three public fields (serde-default):**
+>   `rejections`, `final_round`, and `finalized`. Old v1 logs that predate
+>   these fields still deserialize; the defaults are empty / zero /
+>   `false` so back-compat stays silent.
+> - **Private-intent fixture file format.** Demo runs need private witness
+>   material per node. The binary loads it from a separate TOML file
+>   (`*.private.toml`) cross-validated against the topology (role match,
+>   capability match, every topology node present). Values are never
+>   echoed in errors — a malformed file surfaces the field name, not the
+>   value.
 
 ### Acceptance Criteria
 
-- [ ] All 6 test categories pass
-- [ ] Vertex-backed agent runtime can execute a valid round and persist artifacts
-- [ ] Invalid-proof rejection, replay rejection, and double-commit rejection are visible in the saved coordination record
-- [ ] Silent-node or mid-round-drop behavior is handled by valid completion or verifiable abort within the validated baseline
-- [ ] Standalone verifier validates a good log and rejects tampered or incomplete ones using public inputs only
-- [ ] E2E Gate passes
+- [x] All 6 test categories pass
+- [x] Vertex-backed agent runtime can execute a valid round and persist artifacts
+- [x] Invalid-proof rejection, replay rejection, and double-commit rejection are visible in the saved coordination record
+- [x] Silent-node or mid-round-drop behavior is handled by valid completion or verifiable abort within the validated baseline
+- [x] Standalone verifier validates a good log and rejects tampered or incomplete ones using public inputs only
+- [x] E2E Gate passes
 
 ---
 

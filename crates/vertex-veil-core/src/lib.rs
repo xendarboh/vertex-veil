@@ -13,6 +13,7 @@
 //! formatting and default serialization never expose their values. Public
 //! coordination records never hold a [`Secret`] field.
 
+pub mod adversarial;
 pub mod artifacts;
 pub mod candidate;
 pub mod capability;
@@ -25,11 +26,13 @@ pub mod predicate;
 pub mod private_intent;
 pub mod proposer;
 pub mod round_machine;
+pub mod runtime;
 pub mod shared_types;
+pub mod verifier;
 
 pub use artifacts::{
-    ArtifactWriter, CommitmentRecord, CompletionReceiptRecord, CoordinationLog,
-    ProofArtifactRecord, ProposalRecord, VerifierReport,
+    read_coordination_log, ArtifactWriter, CommitmentRecord, CompletionReceiptRecord,
+    CoordinationLog, ProofArtifactRecord, ProposalRecord, RejectionRecord, VerifierReport,
 };
 pub use candidate::{derive_candidate, Candidate, CandidateRejection};
 pub use capability::{CapabilityTag, CapabilityTagSet};
@@ -48,3 +51,9 @@ pub use private_intent::{PrivateProviderIntent, PrivateRequesterIntent, Secret};
 pub use proposer::{proposer_for_round, ProposerError};
 pub use round_machine::{RoundError, RoundMachine};
 pub use shared_types::{PublicIntent, RoundId, RoundState};
+pub use adversarial::{Scenario, ScenarioEvent};
+pub use runtime::{
+    AgentState, CoordinationMessage, CoordinationRuntime, OrderedBus, RuntimeError,
+    RuntimeOutcome, CoordinationTransport,
+};
+pub use verifier::{StandaloneVerifier, VerifierError};
