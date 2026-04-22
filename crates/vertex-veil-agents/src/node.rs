@@ -14,6 +14,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
+use std::thread;
 use std::time::Duration;
 
 use vertex_veil_core::{
@@ -83,6 +84,10 @@ pub struct NodeArgs {
     pub run_id: String,
     /// Whether this node is rejoining an existing cluster.
     pub rejoin: bool,
+    /// Keep the node alive after each completed session.
+    pub persist: bool,
+    /// Delay between persistent sessions.
+    pub persist_sleep_ms: u64,
     /// Max time to block inside a single transport poll (ms).
     pub poll_timeout_ms: u64,
     /// Name of an environment variable holding the tashi-vertex
@@ -180,44 +185,118 @@ pub fn run_node(args: NodeArgs) -> Result<NodeResult, NodeError> {
     bootstrap_wait(&mut transport, Duration::from_secs(2));
     println!("[{}] [VERTEX] bootstrap complete", node_alias);
 
-    // Runtime + observer.
-    let observer = Box::new(StdoutObserver::new(node_alias.clone()));
-    let rt = CoordinationRuntime::new(
-        topology.clone(),
-        transport,
-        local_agents,
-        scenario.clone(),
-        args.max_rounds,
-    )
-    .map_err(|e| NodeError::Runtime(e.to_string()))?
-    .with_observer(observer);
-
-    let outcome = rt
-        .run(args.run_id.clone())
-        .map_err(|e| NodeError::Runtime(e.to_string()))?;
-
-    // Write this node's bundle to <artifacts>/<node-alias>/.
+    let topology_text = fs::read_to_string(&args.topology).map_err(|e| NodeError::Io(e.to_string()))?;
+    let scenario_text = match &args.scenario {
+        Some(scn_path) => Some(
+            fs::read_to_string(scn_path).map_err(|e| NodeError::Io(e.to_string()))?,
+        ),
+        None => None,
+    };
     let bundle_dir = args.artifacts.join(&node_alias);
-    let (writer, _rotated_prev) = ArtifactWriter::open_versioned(&bundle_dir)
-        .map_err(|e| NodeError::Io(e.to_string()))?;
+    let sleep_between_runs = Duration::from_millis(args.persist_sleep_ms);
+    let mut session_idx = 0u64;
+    let mut latest_result: NodeResult;
+    let mut transport = transport;
+
+    loop {
+        let session_run_id = if args.persist {
+            format!("{}-r{:03}", args.run_id, session_idx)
+        } else {
+            args.run_id.clone()
+        };
+
+        if args.persist {
+            println!(
+                "[{alias}] [VERTEX] persistent session start run_id={run_id}",
+                alias = node_alias,
+                run_id = session_run_id,
+            );
+        }
+
+        let observer = Box::new(StdoutObserver::new(node_alias.clone()));
+        let rt = CoordinationRuntime::new(
+            topology.clone(),
+            transport,
+            local_agents.clone(),
+            scenario.clone(),
+            args.max_rounds,
+        )
+        .map_err(|e| NodeError::Runtime(e.to_string()))?
+        .with_observer(observer);
+
+        let (outcome, next_transport) = rt
+            .run_with_transport(session_run_id.clone())
+            .map_err(|e| NodeError::Runtime(e.to_string()))?;
+        transport = next_transport;
+
+        let report = persist_node_bundle(
+            &bundle_dir,
+            &topology,
+            &topology_text,
+            scenario_text.as_deref(),
+            &node_alias,
+            &outcome,
+        )?;
+
+        let result = NodeResult {
+            node_alias: node_alias.clone(),
+            artifacts_dir: bundle_dir.clone(),
+            report,
+            finalized: outcome.finalized,
+            abort_reason: outcome.log.abort_reason.clone(),
+        };
+
+        if args.persist {
+            let reason_suffix = match &result.abort_reason {
+                Some(reason) => format!(" abort_reason={reason}"),
+                None => String::new(),
+            };
+            println!(
+                "[{alias}] [VERTEX] persistent session complete run_id={run_id} final_round={round} finalized={finalized}{reason}",
+                alias = node_alias,
+                run_id = session_run_id,
+                round = result.report.final_round.value(),
+                finalized = result.finalized,
+                reason = reason_suffix,
+            );
+        }
+
+        latest_result = result;
+
+        if !args.persist {
+            break;
+        }
+
+        session_idx = session_idx.saturating_add(1);
+        thread::sleep(sleep_between_runs);
+    }
+
+    Ok(latest_result)
+}
+
+fn persist_node_bundle(
+    bundle_dir: &std::path::Path,
+    topology: &TopologyConfig,
+    topology_text: &str,
+    scenario_text: Option<&str>,
+    alias: &str,
+    outcome: &vertex_veil_core::RuntimeOutcome,
+) -> Result<VerifierReport, NodeError> {
+    let writer = ArtifactWriter::new(bundle_dir).map_err(|e| NodeError::Io(e.to_string()))?;
+    clean_owned_files(writer.dir())?;
 
     writer
         .write_coordination_log(&outcome.log)
         .map_err(|e| NodeError::Io(e.to_string()))?;
 
-    // Copy topology so `verify` can reload it.
-    fs::write(
-        writer.dir().join("topology.toml"),
-        fs::read_to_string(&args.topology).map_err(|e| NodeError::Io(e.to_string()))?,
-    )
-    .map_err(|e| NodeError::Io(e.to_string()))?;
-    if let Some(scn_path) = &args.scenario {
-        let text = fs::read_to_string(scn_path).map_err(|e| NodeError::Io(e.to_string()))?;
+    fs::write(writer.dir().join("topology.toml"), topology_text)
+        .map_err(|e| NodeError::Io(e.to_string()))?;
+    if let Some(text) = scenario_text {
         fs::write(writer.dir().join("scenario.toml"), text)
             .map_err(|e| NodeError::Io(e.to_string()))?;
     }
 
-    let verifier = StandaloneVerifier::new(topology);
+    let verifier = StandaloneVerifier::new(topology.clone());
     let report = verifier.verify_log(&outcome.log);
     writer
         .write_verifier_report(&report)
@@ -249,16 +328,33 @@ pub fn run_node(args: NodeArgs) -> Result<NodeResult, NodeError> {
         .write_run_status(&status)
         .map_err(|e| NodeError::Io(e.to_string()))?;
     writer
-        .write_bundle_readme(&render_bundle_readme(&status, &node_alias))
+        .write_bundle_readme(&render_bundle_readme(&status, alias))
         .map_err(|e| NodeError::Io(e.to_string()))?;
 
-    Ok(NodeResult {
-        node_alias,
-        artifacts_dir: bundle_dir,
-        report,
-        finalized: outcome.finalized,
-        abort_reason: outcome.log.abort_reason,
-    })
+    Ok(report)
+}
+
+const OWNED_FILES: &[&str] = &[
+    "coordination_log.json",
+    "verifier_report.json",
+    "run_status.json",
+    "completion_receipt.json",
+    "topology.toml",
+    "scenario.toml",
+    "bundle_README.md",
+];
+
+fn clean_owned_files(dir: &std::path::Path) -> Result<(), NodeError> {
+    if !dir.exists() {
+        return Ok(());
+    }
+    for name in OWNED_FILES {
+        let path = dir.join(name);
+        if path.exists() {
+            fs::remove_file(&path).map_err(|e| NodeError::Io(e.to_string()))?;
+        }
+    }
+    Ok(())
 }
 
 fn bootstrap_wait(transport: &mut VertexTransport, window: Duration) {

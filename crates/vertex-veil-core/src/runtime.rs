@@ -355,6 +355,56 @@ impl<T: CoordinationTransport> CoordinationRuntime<T> {
         })
     }
 
+    /// Run one bounded coordination session and return both the outcome and
+    /// the underlying transport so callers can reuse a live transport across
+    /// multiple sessions.
+    pub fn run_with_transport(
+        mut self,
+        run_id: impl Into<String>,
+    ) -> Result<(RuntimeOutcome, T), RuntimeError> {
+        self.log = CoordinationLog::new(run_id);
+
+        let mut finalized = false;
+        let mut final_round = RoundId::new(0);
+        for _ in 0..self.max_rounds {
+            let round = self.round_machine.current_round();
+            final_round = round;
+            let outcome = self.run_one_round(round)?;
+            self.observer
+                .on_round_committed(round, matches!(outcome, RoundOutcome::Finalized));
+            match outcome {
+                RoundOutcome::Finalized => {
+                    finalized = true;
+                    break;
+                }
+                RoundOutcome::Fallback => {
+                    self.round_machine.advance_fallback()?;
+                }
+            }
+        }
+
+        self.log.set_final_round(final_round, finalized);
+        if !finalized {
+            self.log.set_abort_reason("max_rounds_exceeded");
+            self.observer
+                .on_abort("max_rounds_exceeded", final_round);
+        }
+        let outcome = RuntimeOutcome {
+            log: self.log,
+            finalized,
+            final_round,
+        };
+        Ok((outcome, self.transport))
+    }
+
+    /// Consume the runtime and return the underlying transport.
+    ///
+    /// This is used by long-lived drivers that want to execute multiple
+    /// bounded coordination sessions over the same transport instance.
+    pub fn into_transport(self) -> T {
+        self.transport
+    }
+
     fn run_one_round(&mut self, round: RoundId) -> Result<RoundOutcome, RuntimeError> {
         // Step 1: each non-dropped agent broadcasts its commitment (and any
         // adversarial variations scheduled for this round).

@@ -125,6 +125,13 @@ pub enum Command {
         /// Rejoin an existing cluster instead of bootstrapping fresh.
         #[arg(long, default_value_t = false)]
         rejoin: bool,
+        /// Keep the node alive after each completed coordination session and
+        /// immediately start the next one.
+        #[arg(long, default_value_t = false)]
+        persist: bool,
+        /// Milliseconds to wait between persistent coordination sessions.
+        #[arg(long, default_value_t = 1000)]
+        persist_sleep_ms: u64,
         /// Max milliseconds per transport poll.
         #[arg(long, default_value_t = 500)]
         poll_timeout_ms: u64,
