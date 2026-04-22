@@ -1,12 +1,16 @@
 # Vertex Veil
 
+<div align="center">
+  <img src="./img/vertex-veil-002--720x720.png" alt="VV-Logo" width="720">
+</div>
+
 **Private-intent coordination with ZK proofs, anchored by Tashi Vertex BFT
 consensus.** Agents publish commitments, negotiate a match, and settle a
 signed completion receipt — without ever putting their private price
 constraints on the wire. Every run produces a third-party-verifiable
 public record.
 
-## The 30-second pitch
+## Overview
 
 Say you have a requester who needs a GPU job run under a private budget,
 and three providers each with a private reservation price. You want them
@@ -33,34 +37,33 @@ That's Vertex Veil:
 ## Architecture
 
 ```
-   ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐
-   │ agent n1 │   │ agent n2 │   │ agent n3 │   │ agent n4 │
-   │ requester│   │ provider │   │ provider │   │ provider │
-   └────┬─────┘   └────┬─────┘   └────┬─────┘   └────┬─────┘
-        │              │              │              │
-        └──────────────┴──────┬───────┴──────────────┘
-                              ▼
-                 ┌──────────────────────────┐
-                 │  consensus-ordered bus   │
-                 │  OrderedBus  or  Vertex  │
-                 └──────────────┬───────────┘
-                                ▼
-      commitments ─► proposal ─► proofs ─► receipt
-                                │
-                                ▼
-                ┌─────────────────────────────────┐
-                │  coordination_log.json          │
-                │  verifier_report.json           │
-                │  completion_receipt.json        │
-                │  run_status.json                │
-                │  bundle_README.md               │
-                └─────────────────────────────────┘
-                                │
-                                ▼
-                  cargo run … verify --artifacts …
-                                │
-                                ▼
-                          valid = true
+┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐
+│ agent n1 │   │ agent n2 │   │ agent n3 │   │ agent n4 │
+│ requester│   │ provider │   │ provider │   │ provider │
+└────┬─────┘   └────┬─────┘   └────┬─────┘   └────┬─────┘
+     │              │              │              │
+     └──────────────┴──────┬───────┴──────────────┘
+                           ▼
+              ┌──────────────────────────┐
+              │       Vertex Swarm       │
+              └──────────────┬───────────┘
+                             ▼
+   commitments ─► proposal ─► proofs ─► receipt
+                             │
+                             ▼
+             ┌─────────────────────────────────┐
+             │  coordination_log.json          │
+             │  verifier_report.json           │
+             │  completion_receipt.json        │
+             │  run_status.json                │
+             │  bundle_README.md               │
+             └─────────────────────────────────┘
+                             │
+                             ▼
+               cargo run … verify --artifacts …
+                             │
+                             ▼
+                       valid = true
 ```
 
 ## Quick Start
@@ -92,21 +95,15 @@ cargo run --release -p vertex-veil-agents -- verify --artifacts artifacts/demo
   finalizes with a clean provider.
 - `verify … valid=true` — public-only third-party verification.
 
-## Judging criteria → where it lives
+## Capability criteria → where it lives
 
-| Criterion                           | Evidence in this repo                              |
-| ----------------------------------- | -------------------------------------------------- |
-| Coordination works                  | `demo … --narrate` produces a signed receipt and   |
-|                                     | a `valid=true` verifier report from public inputs. |
-| Coordination works (Vertex handles | `demo-bft` subcommand + `VertexTransport`         |
-| failures)                           | (feature-gated). Adversarial rejection visible in  |
-|                                     | `coordination_log.json` under `rejections`.        |
-| Auditability                        | `coordination_log.json` + standalone `verify`.     |
-| ZK correctness                      | `circuits/requester/`, `circuits/provider/`,       |
-|                                     | `circuits/shared/`. Parity tests in                |
-|                                     | `crates/vertex-veil-core/tests/parity*.rs`.        |
-| Privacy posture                     | `Secret<T>` wrapper, redaction in logs,            |
-|                                     | public-only artifact schema.                       |
+| Criterion                                    | Evidence in this repo                                                                                                                   |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Coordination works                           | `demo … --narrate` produces a signed receipt and a `valid=true` verifier report from public inputs.                                     |
+| Coordination works (Vertex handles failures) | `demo-bft` subcommand + `VertexTransport` (feature-gated). Adversarial rejection visible in `coordination_log.json` under `rejections`. |
+| Auditability                                 | `coordination_log.json` + standalone `verify`.                                                                                          |
+| ZK correctness                               | `circuits/requester/`, `circuits/provider/`, `circuits/shared/`. Parity tests in `crates/vertex-veil-core/tests/parity*.rs`.            |
+| Privacy posture                              | `Secret<T>` wrapper, redaction in logs, public-only artifact schema.                                                                    |
 
 ## Repo map
 
