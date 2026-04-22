@@ -4,154 +4,307 @@
   <img src="./img/vertex-veil-002--720x720.png" alt="VV-Logo" width="720">
 </div>
 
-**Private-intent coordination with ZK proofs, anchored by Tashi Vertex BFT
-consensus.** Agents publish commitments, negotiate a match, and settle a
-signed completion receipt — without ever putting their private price
-constraints on the wire. Every run produces a third-party-verifiable
-public record.
+## Leaderless agent coordination over private intent
 
-## Overview
+**Thesis:** Vertex Veil is a framework for building multi-agent systems that reach verifiable joint outcomes without revealing what any participant wanted.
 
-Say you have a requester who needs a GPU job run under a private budget,
-and three providers each with a private reservation price. You want them
-to reach a deal that satisfies both sides' constraints — without either
-side revealing their number. And you want anyone — a judge, a regulator,
-a counterparty — to later confirm the deal was valid, from a public log
-alone.
+Coordination today reveals intent as a side effect of coordinating. Agents publish bids, capabilities, preferences, and constraints just to participate — leaking strategy, identity, and attack surface in exchange for the ability to cooperate. That tradeoff doesn't scale to autonomous systems from independent principals, who can neither surrender their private state to a trusted orchestrator nor broadcast it to the network.
 
-That's Vertex Veil:
+Vertex Veil treats privacy and coordination as the same problem at different layers. The Tashi Vertex Engine provides leaderless ordering, finality, and Byzantine fault tolerance. Noir circuits provide private constraint validation with publicly verifiable proofs. Fused, they enable a single primitive: a swarm that reaches cryptographically verifiable agreement on outcomes satisfying every participant's private constraints — without any participant or observer learning anyone else's intent beyond what the outcome structurally requires.
 
-- Each agent commits to its private intent with a hash (Blake2s over a
-  canonical preimage).
-- A Noir ZK circuit proves the match predicate (capability +
-  budget ≥ price) holds, without revealing either private value.
-- Consensus ordering — Tashi Vertex in production, an equivalent
-  deterministic in-process `OrderedBus` for demos — keeps every agent
-  on the same view of the round.
-- Fallback rounds handle dropped nodes, tampered proofs, replays, and
-  double-commits — each visibly recorded as a rejection in the public
-  log.
-- The matched provider signs a completion receipt with ed25519. A
-  standalone verifier re-checks everything from public inputs alone.
+The framework is protocol-first and scenario-agnostic. Intents, commitments, round state, predicates, proposer rotation, proof interfaces, and the coordination record are all reusable components. The first validated scenario is compute-task matching between a requester and multiple providers with private prices and public capabilities, but the same primitives compose to private task auctions, consensus over private observations, capability-proven collaboration between competitors, and any coordination problem where intent has private structure.
+
+The structural guarantee: every coordination round produces a public record sufficient for a third party to verify the outcome was valid — that all participants' private constraints were satisfied, the match was deterministic given committed intents, and no replay or equivocation occurred — without access to any private input from any agent. Verifiable correctness, without surveillance. Coordination, without revelation.
+
+> **Status:** `v1` in development. The first validated scenario is resource-task matching
+> between a requester and multiple providers. The protocol primitives are designed to
+> compose; generalization is earned incrementally by additional validated scenarios.
+
+## What Vertex Veil Proves
+
+Vertex Veil combines four things in one runnable system:
+
+- **Tashi Vertex ordering and failure handling** across a real multi-node cluster.
+- **Noir ZK proofs** for requester/provider acceptance checks.
+- **Visible fallback and rejection handling** for invalid proofs, replay-like misuse, double-commit attempts, and dropped or silent participants.
+- **Third-party verifiability** from public artifacts alone.
+
+At a high level:
+
+- one requester publishes a public capability need and privately holds a budget
+- providers publish public capability claims and privately hold reservation constraints
+- Vertex orders commitments, proposals, proofs, and receipts
+- Noir proves the chosen match satisfies the private predicate
+- a verifier later replays the public record and reports `valid=true`
 
 ## Architecture
 
-```
+```text
 ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐
-│ agent n1 │   │ agent n2 │   │ agent n3 │   │ agent n4 │
-│ requester│   │ provider │   │ provider │   │ provider │
+│ Agent n1 │   │ Agent n2 │   │ Agent n3 │   │ Agent nX │
+│ requester│   │ provider │   │ provider │   │   ...    │
 └────┬─────┘   └────┬─────┘   └────┬─────┘   └────┬─────┘
      │              │              │              │
-     └──────────────┴──────┬───────┴──────────────┘
-                           ▼
-              ┌──────────────────────────┐
-              │       Vertex Swarm       │
-              └──────────────┬───────────┘
-                             ▼
-   commitments ─► proposal ─► proofs ─► receipt
-                             │
-                             ▼
-             ┌─────────────────────────────────┐
-             │  coordination_log.json          │
-             │  verifier_report.json           │
-             │  completion_receipt.json        │
-             │  run_status.json                │
-             │  bundle_README.md               │
-             └─────────────────────────────────┘
-                             │
-                             ▼
-               cargo run … verify --artifacts …
-                             │
-                             ▼
-                       valid = true
+     └──────────────┴───────┬──────┴──────────────┘
+                            ▼
+               ┌────────────────────────┐
+               │      Tashi Vertex      │
+               │    Consensus Engine    │
+               └────────────┬───────────┘
+                            ▼
+        commitments -> proposal -> proofs -> receipt
+                            │
+                            ▼
+              ┌─────────────────────────┐
+              │ public artifact bundle  │
+              │ third-party verifiable  │
+              │ with no private inputs  │
+              └─────────────────────────┘
+                            │
+                            ▼
+                  verify artifacts ...
+                            │
+                            ▼
+                      valid = true
 ```
 
-## Quick Start
+## Install
+
+You need Rust and Noir available locally.
+
+### Rust
+
+Install Rust with `rustup` if you do not already have it:
 
 ```bash
-# Build the circuits (Noir) and the workspace (Rust)
-cd circuits && nargo compile --workspace && cd ..
-cargo build -p vertex-veil-agents --release
+curl https://sh.rustup.rs -sSf | sh
+```
 
-# Run the narratable demo (one command)
+Then confirm:
+
+```bash
+cargo --version
+rustc --version
+```
+
+### Noir
+
+Install Noir by following the official installation guide:
+
+- <https://noir-lang.org/docs/getting_started/noir_installation>
+
+Then confirm:
+
+```bash
+nargo --version
+```
+
+> **Note on Version Pinning:** The `nargo` version in your environment **must match** the `noir_rs` version pinned in [`crates/vertex-veil-noir/Cargo.toml`](crates/vertex-veil-noir/Cargo.toml). At the time of writing, both use `1.0.0-beta.20`. If this drifts, the `Cargo.toml` is the source of truth. Mismatched versions will fail.
+
+Vertex Veil expects `nargo` to be available because the reproducible setup compiles the circuits before running the agents.
+
+## Reproducible Setup
+
+From the `vertex-veil/` directory:
+
+```bash
+cd circuits
+nargo compile --workspace
+cd ..
+
+cargo build -p vertex-veil-agents --release --features vertex-transport
+```
+
+## Running Tests
+
+The test suite covers protocol logic, round-state enforcement, adversarial scenarios, verifier correctness, and Noir circuit constraints — over 230 tests in total.
+
+Run all Rust tests:
+
+```bash
+cargo test
+```
+
+Run all Noir circuit tests:
+
+```bash
+cd circuits
+nargo test --workspace
+```
+
+## Fastest Reproduction: Vertex Transport, Single Command
+
+This is the recommended first run for a fresh user. It uses the real Tashi Vertex transport, spawns four node processes, and writes one public bundle per node.
+
+```bash
+cargo run --release -p vertex-veil-agents --features vertex-transport -- \
+  demo-bft \
+  --scenario fixtures/scenario-bft-rejoin.toml \
+  --artifacts artifacts/bft-demo
+```
+
+Then verify any node's bundle:
+
+```bash
+cargo run --release -p vertex-veil-agents -- \
+  verify --artifacts artifacts/bft-demo/n1
+```
+
+The command above creates `artifacts/bft-demo/n1`, `n2`, `n3`, and `n4`. If you want to confirm the exact bundle layout first, a known-good example from this repository is `artifacts/bft-readme-check/n1` (assuming it has been generated).
+
+What you should see in the aggregated output:
+
+- `[COORD] commitment from ...` across all four nodes
+- `[COORD] proposal by ...`
+- `[COORD] proof verified for ...`
+- `[COORD] receipt signed by ...`
+- `[VERTEX] round N committed (finalized=true)`
+- child exit summaries with `valid=true`
+
+This flow is bounded: it runs a real Vertex-backed session to completion, writes artifacts, and exits.
+
+## Persistent Cluster and Manual Rejoin
+
+If you want a multi-terminal demo that stays alive long enough to kill and restart nodes manually, use `node --persist`.
+
+Open four terminals in `vertex-veil/` and run:
+
+```bash
+./bin/start.sh 1 --artifacts artifacts/persist-demo --persist
+```
+
+```bash
+./bin/start.sh 2 --artifacts artifacts/persist-demo --persist
+```
+
+```bash
+./bin/start.sh 3 --artifacts artifacts/persist-demo --persist
+```
+
+```bash
+./bin/start.sh 4 --artifacts artifacts/persist-demo --persist
+```
+
+Each node will:
+
+- stay connected to the Vertex cluster
+- complete a bounded coordination session
+- checkpoint the latest public artifacts
+- wait briefly
+- start the next session automatically
+
+Verify the latest bundle for any node while the cluster is still running:
+
+```bash
+cargo run --release -p vertex-veil-agents -- \
+  verify --artifacts artifacts/persist-demo/node-11111111
+```
+
+To simulate a node failure, stop one terminal or kill that process. To restart the same node into the running cluster, use `--rejoin`:
+
+```bash
+./bin/start.sh 3 --artifacts artifacts/persist-demo --persist --rejoin
+```
+
+To stop the whole cluster:
+
+```bash
+./bin/killall.sh
+```
+
+Notes:
+
+- `--persist` is the long-lived manual demo path.
+- `--rejoin` is only for a node that is returning to an existing running cluster.
+- `verify` always checks the latest completed session snapshot currently stored in that node's artifact directory.
+
+## Repo Map
+
+Notable implementation entry points include:
+
+- [`crates/`](crates/)
+  - [`vertex-veil-core/`](crates/vertex-veil-core/) — protocol logic, verifier, artifacts, round machine
+    - [`runtime.rs`](crates/vertex-veil-core/src/runtime.rs) — coordination protocol loop
+    - [`round_machine.rs`](crates/vertex-veil-core/src/round_machine.rs) — round-state enforcement
+    - [`verifier.rs`](crates/vertex-veil-core/src/verifier.rs) — public-only verification
+  - [`vertex-veil-noir/`](crates/vertex-veil-noir/) — Rust to Noir bridge and proof integration
+  - [`vertex-veil-agents/`](crates/vertex-veil-agents/) — CLI surface: `demo`, `verify`, `node`, `demo-bft`
+    - [`vertex_transport.rs`](crates/vertex-veil-agents/src/vertex_transport.rs) - Tashi Vertex transport adapter
+    - [`orchestrate.rs`](crates/vertex-veil-agents/src/orchestrate.rs) - `demo-bft` multi-process launcher and failure injector
+    - [`node.rs`](crates/vertex-veil-agents/src/node.rs) - Single-node runner, persistent mode, artifact checkpointing
+- [`circuits/`](circuits/) — Noir workspace for private constraint validation
+  - [`requester//main.nr`](circuits/requester/src/main.nr) — validates requester's budget and capability needs
+  - [`provider//main.nr`](circuits/provider/src/main.nr) — validates provider's minimum price and capabilities
+  - [`shared//lib.nr`](circuits/shared/src/lib.nr) — shared types and utility functions
+- [`fixtures/`](fixtures/) — topologies, private intents, adversarial scenarios
+- [`bin/`](bin/) — helper scripts for starting and stopping manual clusters
+- [`intent/`](intent/) — IDD artifacts and execution history
+
+## Failure Modes and Safety Checks
+
+The codebase explicitly handles and tests failure paths rather than only the happy path.
+
+Examples exercised in code and scenarios include:
+
+- invalid or tampered proofs
+- replayed prior-round commitments
+- duplicate / double commitments
+- wrong-round messages
+- origin mismatch between message envelope and payload
+- dropped or silent nodes
+- proposer fallback to the next deterministic proposer
+- coherent abort with public artifact output when max rounds are exceeded
+
+The public `rejections` trace in `coordination_log.json` is how these cases remain visible to a verifier.
+
+## Topology and Configuration
+
+The validated baseline is a 4-node cluster:
+
+- `n1` requester
+- `n2`, `n3`, `n4` providers
+
+The topology and private-intent fixtures are runtime-loaded from TOML, so you can inspect or adapt them directly. For example:
+
+- [`fixtures/topology-4node.toml`](fixtures/topology-4node.toml)
+- [`fixtures/topology-4node.private.toml`](fixtures/topology-4node.private.toml)
+
+Artifacts are written per run or per node depending on the command:
+
+- `demo` writes one bundle to the target directory
+- `demo-bft` writes one bundle per node under `<artifacts>/n1`, `<artifacts>/n2`, etc.
+- `node --persist` writes the latest completed session to `<artifacts>/<node-alias-or-node-prefix>/`
+
+## Artifact Bundle Contents
+
+Every completed or coherently aborted run writes public-only artifacts:
+
+- `coordination_log.json` — ordered public protocol record
+- `verifier_report.json` — verifier verdict
+- `run_status.json` — summary for quick inspection
+- `completion_receipt.json` — signed receipt when finalized
+- `topology.toml` — topology snapshot used for verification
+- `scenario.toml` — scenario snapshot when a scenario was supplied
+- `bundle_README.md` — human-readable explanation of the bundle
+
+You can verify any saved bundle with:
+
+```bash
+cargo run --release -p vertex-veil-agents -- verify --artifacts <path-to-bundle>
+```
+
+## Deterministic Dev Path
+
+The repository still includes a deterministic in-process transport used for fast protocol debugging and repeatable local testing.
+
+That path is exposed through `demo`:
+
+```bash
 cargo run --release -p vertex-veil-agents -- \
   demo --topology fixtures/topology-4node.toml \
        --scenario fixtures/replay-doublecommit-drop.toml \
        --artifacts artifacts/demo \
        --narrate
-
-# Independently verify the bundle
-cargo run --release -p vertex-veil-agents -- verify --artifacts artifacts/demo
 ```
 
-## What you'll see
-
-- `[COORD] commitment from nX round=0` — four hashes, one per agent.
-- `[COORD] proposal by n2 (GPU) round=0` — proposer elects a match.
-- `[COORD] proof verified for n1 round=0` — Noir ZK proof accepted.
-- `[VERTEX] round 0 committed (finalized=false)` — round 0 falls back
-  because the scenario injected a tampered proof for n2.
-- `[VERTEX] round 1 committed (finalized=true)` — fallback round
-  finalizes with a clean provider.
-- `verify … valid=true` — public-only third-party verification.
-
-## Capability criteria → where it lives
-
-| Criterion                                    | Evidence in this repo                                                                                                                   |
-| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Coordination works                           | `demo … --narrate` produces a signed receipt and a `valid=true` verifier report from public inputs.                                     |
-| Coordination works (Vertex handles failures) | `demo-bft` subcommand + `VertexTransport` (feature-gated). Adversarial rejection visible in `coordination_log.json` under `rejections`. |
-| Auditability                                 | `coordination_log.json` + standalone `verify`.                                                                                          |
-| ZK correctness                               | `circuits/requester/`, `circuits/provider/`, `circuits/shared/`. Parity tests in `crates/vertex-veil-core/tests/parity*.rs`.            |
-| Privacy posture                              | `Secret<T>` wrapper, redaction in logs, public-only artifact schema.                                                                    |
-
-## Repo map
-
-- `crates/vertex-veil-core/` — protocol, commitments, round machine,
-  standalone verifier, public artifact schema.
-- `crates/vertex-veil-noir/` — Rust ↔ Noir bridge, proof
-  generation/verification, UltraHonk feature gate.
-- `crates/vertex-veil-agents/` — CLI binary: `demo`, `verify`, `node`
-  (feature-gated), `demo-bft` (feature-gated).
-- `circuits/` — Noir workspace: `requester`, `provider`, `shared`.
-- `fixtures/` — topology + private-intent TOML, adversarial scenarios.
-- `intent/` — Intent-Driven-Development artifacts (INTENT.md,
-  decisions.md, plan.md, TASK.yaml).
-- `docs/DEMO.md` — two-minute narration script.
-
-## Demonstrate on the real Vertex substrate
-
-The primary demo path uses an in-process `OrderedBus` that mirrors
-Vertex's consensus ordering deterministically. The workspace also ships
-a feature-gated real-Vertex path that compiles against
-`tashi-vertex` and exposes two subcommands:
-
-```bash
-cargo build -p vertex-veil-agents --features vertex-transport
-cargo run -p vertex-veil-agents --features vertex-transport -- node --help
-cargo run -p vertex-veil-agents --features vertex-transport -- demo-bft --help
-```
-
-`VertexTransport` implements the same `CoordinationTransport` trait the
-in-process demo uses — the protocol logic is transport-agnostic. See
-`crates/vertex-veil-agents/src/node.rs` and
-`crates/vertex-veil-agents/src/orchestrate.rs` for the
-single-node + multi-process orchestrator implementations.
-
-## Reproducibility
-
-Every run produces:
-
-- `coordination_log.json` — complete ordered public record.
-- `verifier_report.json` — verifier decision.
-- `run_status.json` — judge-facing summary (finalized, abort reason,
-  file manifest).
-- `completion_receipt.json` — ed25519-signed receipt (if finalized).
-- `topology.toml` + `scenario.toml` — input configuration snapshot.
-- `bundle_README.md` — human-readable walkthrough.
-
-Repeated runs with the same fixtures produce byte-identical logs (tests:
-`edge_artifact_packaging_deterministic`,
-`edge_replay_doublecommit_reproducible`).
-
-Prior bundles are rotated to `<artifacts>.prev-<N>` instead of clobbered.
+It is useful for deterministic local iteration and exercising adversarial protocol scenarios without the network layer. But the main project story is the real Vertex-backed transport shown by `demo-bft` and `node --persist`.
