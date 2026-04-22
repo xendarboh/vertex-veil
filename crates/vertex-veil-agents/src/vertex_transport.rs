@@ -8,11 +8,11 @@
 //!
 //! Design notes:
 //!
-//! - The [`VertexTransport`] wraps a `tashi-vertex::Engine` and drives it
-//!   from a dedicated tokio runtime owned by the transport. `broadcast`
-//!   sends a JSON-encoded [`vertex_veil_core::CoordinationMessage`] as a
-//!   transaction. `next_ordered` blocks on `Engine::recv_message` and
-//!   yields the next decoded message when a consensus event arrives.
+//! - The [`VertexTransport`] runs the `tashi-vertex::Engine` on a dedicated
+//!   worker thread that owns a long-lived current-thread tokio runtime.
+//!   That matches the warmup reference's shape: the engine keeps making
+//!   progress even while the synchronous coordination runtime is between
+//!   transport calls.
 //! - Transaction payload format is
 //!   `serde_json::to_vec(&CoordinationMessage)`. Consensus order is
 //!   preserved by the Vertex engine; the transport does not reorder.
@@ -24,16 +24,20 @@
 //! semantics live in `vertex-veil-core`.
 
 use std::collections::VecDeque;
-use std::time::{Duration, Instant};
+use std::sync::{
+    mpsc::{self, Receiver, RecvTimeoutError},
+    Arc, Mutex,
+};
+use std::thread::{self, JoinHandle};
+use std::time::Duration;
 
 use anyhow::{Context, Result};
-use serde_json;
 use tashi_vertex::{
     Context as VtxContext, Engine, KeyPublic, KeySecret, Message, Options, Peers, Socket,
     Transaction,
 };
-use tokio::runtime::Runtime;
-use tokio::time::timeout;
+use tokio::sync::mpsc as tokio_mpsc;
+use tokio::time::{self, MissedTickBehavior};
 
 use vertex_veil_core::{CoordinationMessage, CoordinationTransport, TransportError};
 
@@ -42,9 +46,7 @@ use vertex_veil_core::{CoordinationMessage, CoordinationTransport, TransportErro
 /// Heartbeats are filtered out before they reach the application.
 const HEARTBEAT_MARKER: &[u8] = b"HBT\0";
 
-/// Minimum gap between heartbeats. The warmup reference uses 500ms at a
-/// steady cadence; we pace inline with transport calls, which end up
-/// invoking heartbeats every few hundred ms anyway.
+/// Heartbeat cadence used by the worker thread.
 const HEARTBEAT_INTERVAL_MS: u64 = 300;
 
 /// Raw configuration for bringing up a single Vertex node.
@@ -68,33 +70,170 @@ pub struct VertexConfig {
 
 /// A [`CoordinationTransport`] backed by a real tashi-vertex engine.
 pub struct VertexTransport {
-    rt: Runtime,
-    engine: Engine,
+    outbound: tokio_mpsc::UnboundedSender<WorkerCommand>,
+    inbound: Receiver<CoordinationMessage>,
+    worker: Option<JoinHandle<()>>,
     /// FIFO buffer of messages drained from consensus events but not yet
     /// consumed by the runtime. Consensus ordering is preserved.
     pending: VecDeque<CoordinationMessage>,
     poll_timeout: Duration,
-    /// Last time a heartbeat transaction was injected. Used to pace
-    /// inline heartbeats at `HEARTBEAT_INTERVAL_MS` so Vertex keeps
-    /// producing consensus events even when the application is between
-    /// protocol phases.
-    last_heartbeat: Instant,
+    closed: bool,
+}
+
+enum WorkerCommand {
+    Broadcast(Vec<u8>),
 }
 
 impl VertexTransport {
     /// Bring up the engine and return a transport ready for use.
     pub fn start(config: VertexConfig) -> Result<Self> {
-        let rt = tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .context("build tokio runtime")?;
+        let poll_timeout = config.poll_timeout;
+        let (outbound, outbound_rx) = tokio_mpsc::unbounded_channel();
+        let (inbound_tx, inbound) = mpsc::channel();
+        let (startup_tx, startup_rx) = mpsc::channel();
+        let worker_error = Arc::new(Mutex::new(None));
+        let worker_error_clone = Arc::clone(&worker_error);
 
+        let worker = thread::Builder::new()
+            .name(format!("vertex-transport:{}", config.bind))
+            .spawn(move || {
+                let start_result = run_worker(
+                    config,
+                    outbound_rx,
+                    inbound_tx,
+                    startup_tx,
+                    Arc::clone(&worker_error_clone),
+                );
+
+                if let Err(err) = start_result {
+                    set_worker_error(&worker_error_clone, err.to_string());
+                    return;
+                }
+            })
+            .context("spawn vertex worker thread")?;
+
+        match startup_rx.recv() {
+            Ok(Ok(())) => {}
+            Ok(Err(err)) => {
+                let _ = worker.join();
+                anyhow::bail!(err);
+            }
+            Err(_) => {
+                let _ = worker.join();
+                anyhow::bail!("vertex worker exited before startup completed");
+            }
+        }
+
+        Ok(VertexTransport {
+            outbound,
+            inbound,
+            worker: Some(worker),
+            pending: VecDeque::new(),
+            poll_timeout,
+            closed: false,
+        })
+    }
+
+    fn mark_closed(&mut self) {
+        self.closed = true;
+    }
+
+    fn recv_into_pending(&mut self, block: bool) -> Result<bool, TransportError> {
+        if self.closed {
+            return Err(TransportError::Closed);
+        }
+
+        let res = if block {
+            match self.inbound.recv_timeout(self.poll_timeout) {
+                Ok(msg) => Ok(Some(msg)),
+                Err(RecvTimeoutError::Timeout) => Ok(None),
+                Err(RecvTimeoutError::Disconnected) => Err(TransportError::Closed),
+            }
+        } else {
+            match self.inbound.try_recv() {
+                Ok(msg) => Ok(Some(msg)),
+                Err(mpsc::TryRecvError::Empty) => Ok(None),
+                Err(mpsc::TryRecvError::Disconnected) => Err(TransportError::Closed),
+            }
+        };
+
+        match res {
+            Ok(Some(msg)) => {
+                self.pending.push_back(msg);
+                Ok(true)
+            }
+            Ok(None) => Ok(false),
+            Err(err) => {
+                self.mark_closed();
+                Err(err)
+            }
+        }
+    }
+}
+
+impl CoordinationTransport for VertexTransport {
+    fn broadcast(&mut self, msg: CoordinationMessage) -> Result<(), TransportError> {
+        if self.closed {
+            return Err(TransportError::Closed);
+        }
+        let payload = serde_json::to_vec(&msg).map_err(|_| TransportError::Closed)?;
+        self.outbound
+            .send(WorkerCommand::Broadcast(payload))
+            .map_err(|_| {
+                self.mark_closed();
+                TransportError::Closed
+            })
+    }
+
+    fn next_ordered(&mut self) -> Option<CoordinationMessage> {
+        if let Some(m) = self.pending.pop_front() {
+            return Some(m);
+        }
+
+        match self.recv_into_pending(true) {
+            Ok(_) => self.pending.pop_front(),
+            Err(_) => None,
+        }
+    }
+
+    fn flush(&mut self) {
+        while let Ok(true) = self.recv_into_pending(false) {}
+    }
+}
+
+impl Drop for VertexTransport {
+    fn drop(&mut self) {
+        // `tashi-vertex` currently leaves background tokio work alive past
+        // the point where a coordinated run has already finalized. Trying
+        // to synchronously shut its runtime down here triggers a tokio panic
+        // inside those worker tasks. Detach the transport thread instead;
+        // node/demo-bft processes exit immediately after artifact writing,
+        // so the OS reaps the detached worker without losing the run.
+        let keepalive = std::mem::replace(&mut self.outbound, tokio_mpsc::unbounded_channel().0);
+        std::mem::forget(keepalive);
+        let _ = self.worker.take();
+    }
+}
+
+fn run_worker(
+    config: VertexConfig,
+    mut outbound_rx: tokio_mpsc::UnboundedReceiver<WorkerCommand>,
+    inbound_tx: mpsc::Sender<CoordinationMessage>,
+    startup_tx: mpsc::Sender<std::result::Result<(), String>>,
+    worker_error: Arc<Mutex<Option<String>>>,
+) -> Result<()> {
+    let startup_tx_err = startup_tx.clone();
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .context("build vertex worker runtime")?;
+
+    rt.block_on(async move {
         let key: KeySecret = config
             .secret_hex
             .parse()
             .context("parse ed25519 secret")?;
 
-        // Build the peers registry (peers + self).
         let mut peers = Peers::new().context("create peer registry")?;
         for (pub_hex, addr) in &config.peers {
             let pk: KeyPublic = pub_hex.parse().context("parse peer public key")?;
@@ -107,110 +246,84 @@ impl VertexTransport {
             .context("insert self")?;
 
         let context = VtxContext::new().context("create vertex context")?;
-        let (engine, _socket_guard) = rt.block_on(async {
-            let socket = Socket::bind(&context, &config.bind).await?;
-            let engine = Engine::start(
-                &context,
-                socket,
-                Options::default(),
-                &key,
-                peers,
-                config.rejoin,
-            )?;
-            Ok::<_, anyhow::Error>((engine, ()))
-        })?;
+        let socket = Socket::bind(&context, &config.bind)
+            .await
+            .context("bind vertex socket")?;
+        let engine = Engine::start(
+            &context,
+            socket,
+            Options::default(),
+            &key,
+            peers,
+            config.rejoin,
+        )
+        .context("start vertex engine")?;
 
-        Ok(VertexTransport {
-            rt,
-            engine,
-            pending: VecDeque::new(),
-            poll_timeout: config.poll_timeout,
-            last_heartbeat: Instant::now()
-                .checked_sub(Duration::from_secs(1))
-                .unwrap_or_else(Instant::now),
-        })
-    }
+        let _ = startup_tx.send(Ok(()));
 
-    /// Send a heartbeat transaction if the pacing interval has elapsed.
-    /// Inline because `Engine` is not `Send` — we cannot ship it to a
-    /// background tokio task. Every transport method calls this on entry
-    /// so heartbeats fire naturally at the protocol's cadence.
-    fn pulse_heartbeat(&mut self) {
-        if self.last_heartbeat.elapsed() < Duration::from_millis(HEARTBEAT_INTERVAL_MS) {
-            return;
-        }
-        let mut tx = Transaction::allocate(HEARTBEAT_MARKER.len());
-        tx.copy_from_slice(HEARTBEAT_MARKER);
-        let _ = self.engine.send_transaction(tx);
-        self.last_heartbeat = Instant::now();
-    }
+        let mut heartbeat_interval = time::interval(Duration::from_millis(HEARTBEAT_INTERVAL_MS));
+        heartbeat_interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
-    fn drain_one_event(&mut self) -> Result<bool, TransportError> {
-        self.pulse_heartbeat();
-        let res = self.rt.block_on(async {
-            match timeout(self.poll_timeout, self.engine.recv_message()).await {
-                Err(_) => Ok::<Option<Message>, tashi_vertex::Error>(None),
-                Ok(m) => Ok(m?),
-            }
-        });
-        match res {
-            Err(_) => Err(TransportError::Closed),
-            Ok(None) => Ok(false),
-            Ok(Some(Message::SyncPoint(_))) => {
-                // A SyncPoint is a consensus barrier delivery — it does
-                // NOT mean "no more events." Keep draining so we don't
-                // stop mid-batch just because a barrier arrived.
-                Ok(true)
-            }
-            Ok(Some(Message::Event(event))) => {
-                for raw in event.transactions() {
-                    // Skip heartbeats; they keep the engine ticking but
-                    // never surface to the application.
-                    if raw.starts_with(HEARTBEAT_MARKER) {
-                        continue;
+        loop {
+            tokio::select! {
+                _ = heartbeat_interval.tick() => {
+                    if let Err(err) = send_bytes(&engine, HEARTBEAT_MARKER) {
+                        set_worker_error(&worker_error, format!("heartbeat send failed: {err}"));
+                        break;
                     }
-                    match serde_json::from_slice::<CoordinationMessage>(raw) {
-                        Ok(msg) => self.pending.push_back(msg),
-                        Err(_) => {
-                            // Malformed application transaction: skip. The
-                            // runtime's rejection path handles absent
-                            // payloads when the round drains.
+                }
+                cmd = outbound_rx.recv() => {
+                    match cmd {
+                        Some(WorkerCommand::Broadcast(payload)) => {
+                            if let Err(err) = send_bytes(&engine, &payload) {
+                                set_worker_error(&worker_error, format!("broadcast failed: {err}"));
+                                break;
+                            }
+                        }
+                        None => break,
+                    }
+                }
+                msg = engine.recv_message() => {
+                    match msg {
+                        Ok(Some(Message::Event(event))) => {
+                            for raw in event.transactions() {
+                                if raw.starts_with(HEARTBEAT_MARKER) {
+                                    continue;
+                                }
+                                if let Ok(msg) = serde_json::from_slice::<CoordinationMessage>(raw) {
+                                    if inbound_tx.send(msg).is_err() {
+                                        return Ok(());
+                                    }
+                                }
+                            }
+                        }
+                        Ok(Some(Message::SyncPoint(_))) => {}
+                        Ok(None) => break,
+                        Err(err) => {
+                            set_worker_error(&worker_error, format!("recv_message failed: {err}"));
+                            break;
                         }
                     }
                 }
-                Ok(true)
             }
         }
-    }
+
+        Ok(())
+    })
+    .map_err(|err: anyhow::Error| {
+        let _ = startup_tx_err.send(Err(err.to_string()));
+        err
+    })
 }
 
-impl CoordinationTransport for VertexTransport {
-    fn broadcast(&mut self, msg: CoordinationMessage) -> Result<(), TransportError> {
-        self.pulse_heartbeat();
-        let payload = serde_json::to_vec(&msg).map_err(|_| TransportError::Closed)?;
-        let mut tx = Transaction::allocate(payload.len());
-        tx.copy_from_slice(&payload);
-        self.engine
-            .send_transaction(tx)
-            .map_err(|_| TransportError::Closed)
-    }
+fn send_bytes(engine: &Engine, data: &[u8]) -> tashi_vertex::Result<()> {
+    let mut tx = Transaction::allocate(data.len());
+    tx.copy_from_slice(data);
+    engine.send_transaction(tx)
+}
 
-    fn next_ordered(&mut self) -> Option<CoordinationMessage> {
-        self.pulse_heartbeat();
-        if let Some(m) = self.pending.pop_front() {
-            return Some(m);
-        }
-        // Attempt one drain cycle; timeout here is bounded by poll_timeout.
-        match self.drain_one_event() {
-            Ok(_) => self.pending.pop_front(),
-            Err(_) => None,
-        }
-    }
-
-    fn flush(&mut self) {
-        self.pulse_heartbeat();
-        // Drain any events already in-flight so the caller sees everything
-        // that is currently ready without waiting.
-        while let Ok(true) = self.drain_one_event() {}
+fn set_worker_error(slot: &Arc<Mutex<Option<String>>>, value: String) {
+    if let Ok(mut guard) = slot.lock() {
+        *guard = Some(value);
     }
 }
