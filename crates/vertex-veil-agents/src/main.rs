@@ -36,6 +36,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, Box<dyn std::error::Error>> {
             max_rounds,
             run_id,
             force,
+            narrate,
         } => {
             let result = demo(DemoArgs {
                 topology,
@@ -45,6 +46,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, Box<dyn std::error::Error>> {
                 max_rounds,
                 run_id: run_id.clone(),
                 force,
+                narrate,
             })?;
             if let Some(prev) = &result.rotated_prev {
                 eprintln!(
@@ -101,6 +103,101 @@ fn dispatch(cli: Cli) -> Result<ExitCode, Box<dyn std::error::Error>> {
                     report.reasons
                 )
                 .into());
+            }
+            Ok(ExitCode::SUCCESS)
+        }
+        #[cfg(feature = "vertex-transport")]
+        Command::Node {
+            bind,
+            peers,
+            node_id,
+            node_alias,
+            topology,
+            private_intents,
+            scenario,
+            artifacts,
+            max_rounds,
+            run_id,
+            rejoin,
+            poll_timeout_ms,
+            secret_env,
+            secret_str,
+        } => {
+            use vertex_veil_agents::node::{run_node, NodeArgs};
+            let result = run_node(NodeArgs {
+                bind,
+                peers,
+                node_id,
+                node_alias,
+                topology,
+                private_intents,
+                scenario,
+                artifacts,
+                max_rounds,
+                run_id: run_id.clone(),
+                rejoin,
+                poll_timeout_ms,
+                secret_env,
+                secret_str,
+            })?;
+            eprintln!(
+                "vertex-veil-agents: node alias={} run_id={} final_round={} finalized={} valid={}{}",
+                result.node_alias,
+                run_id,
+                result.report.final_round.value(),
+                result.finalized,
+                result.report.valid,
+                match &result.abort_reason {
+                    Some(r) => format!(" abort_reason={r}"),
+                    None => String::new(),
+                }
+            );
+            if !result.report.valid {
+                return Err(format!(
+                    "verifier rejected the node log: {:?}",
+                    result.report.reasons
+                )
+                .into());
+            }
+            if !result.finalized {
+                return Ok(ExitCode::from(2));
+            }
+            Ok(ExitCode::SUCCESS)
+        }
+        #[cfg(feature = "vertex-transport")]
+        Command::DemoBft {
+            topology,
+            private_intents,
+            scenario,
+            artifacts,
+            base_port,
+            fail_at_round,
+            rejoin_after_ms,
+            fail_target,
+            max_rounds,
+            run_id,
+            poll_timeout_ms,
+        } => {
+            use vertex_veil_agents::orchestrate::{run_orchestrator, OrchestrateArgs};
+            let result = run_orchestrator(OrchestrateArgs {
+                topology,
+                private_intents,
+                scenario,
+                artifacts,
+                base_port,
+                fail_at_round,
+                rejoin_after_ms,
+                fail_target,
+                max_rounds,
+                run_id,
+                poll_timeout_ms,
+                binary: None,
+            })?;
+            if !result.overall_ok {
+                return Ok(ExitCode::from(1));
+            }
+            if result.children_finalized == 0 && result.children_aborted > 0 {
+                return Ok(ExitCode::from(2));
             }
             Ok(ExitCode::SUCCESS)
         }

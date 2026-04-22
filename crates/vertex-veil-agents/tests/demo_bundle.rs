@@ -80,6 +80,7 @@ fn args(
         max_rounds,
         run_id: format!("test-{name}"),
         force,
+        narrate: false,
     }
 }
 
@@ -235,6 +236,7 @@ fn bad_demo_fails_clearly_for_malformed_node_config() {
         max_rounds: 4,
         run_id: "bad".into(),
         force: false,
+        narrate: false,
     };
     let err = run(a).expect_err("malformed topology must error");
     assert!(matches!(err, RunError::Topology(_)));
@@ -442,6 +444,7 @@ budget_cents = "{secret_marker}"
         max_rounds: 4,
         run_id: "redact".into(),
         force: false,
+        narrate: false,
     };
     let err = run(a).expect_err("malformed private intent must error");
     let msg = format!("{err}");
@@ -581,6 +584,7 @@ budget_cents = "{secret_marker}"
         max_rounds: 4,
         run_id: "leak".into(),
         force: false,
+        narrate: false,
     };
     let err = run(a).expect_err("must error");
     let msg = format!("{err}");
@@ -639,6 +643,7 @@ fn damage_re_run_versions_existing_bundle() {
         max_rounds: 4,
         run_id: "rotation".into(),
         force: false,
+        narrate: false,
     };
     let r2 = run(a2).expect("second run ok");
     assert!(r2.rotated_prev.is_some());
@@ -673,6 +678,7 @@ fn damage_re_run_does_not_touch_unrelated_files() {
         max_rounds: 4,
         run_id: "preserve".into(),
         force: false,
+        narrate: false,
     };
     let r2 = run(a2).unwrap();
     let prev = r2.rotated_prev.unwrap();
@@ -690,6 +696,7 @@ fn damage_re_run_does_not_touch_unrelated_files() {
         max_rounds: 4,
         run_id: "preserve-force".into(),
         force: true,
+        narrate: false,
     };
     let _ = run(a3).unwrap();
     assert_eq!(fs::read_to_string(dir.join("more-notes.md")).unwrap(), "more");

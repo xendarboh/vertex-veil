@@ -125,6 +125,33 @@ impl CoordinationTransport for OrderedBus {
     }
 }
 
+/// Narratable runtime events. Implementations receive a callback for each
+/// significant protocol milestone so the agent binary can map them to
+/// human-readable stdout tags (`[VERTEX]`, `[COORD]`, `[ABORT]`) without the
+/// runtime itself touching stdout. Default no-op implementations keep the
+/// trait additive: existing call sites that do not install an observer are
+/// unaffected.
+pub trait RuntimeObserver: Send + Sync {
+    fn on_round_committed(&self, _round: RoundId, _finalized: bool) {}
+    fn on_commitment(&self, _node: NodeId, _round: RoundId) {}
+    fn on_proposal(
+        &self,
+        _proposer: NodeId,
+        _round: RoundId,
+        _matched_capability: &str,
+    ) {
+    }
+    fn on_proof_verified(&self, _node: NodeId, _round: RoundId) {}
+    fn on_receipt(&self, _provider: NodeId, _round: RoundId) {}
+    fn on_abort(&self, _reason: &str, _round: RoundId) {}
+}
+
+/// Default observer that drops every event. Used when the runtime is
+/// constructed without an explicit observer (the Phase 3/4 in-process path).
+#[derive(Debug, Default)]
+pub struct NoopObserver;
+impl RuntimeObserver for NoopObserver {}
+
 /// Per-agent state held by the runtime so it can generate commitments and
 /// proofs on behalf of each configured node.
 #[derive(Clone, Debug)]
@@ -202,6 +229,9 @@ pub struct CoordinationRuntime<T: CoordinationTransport> {
     /// Per-run salt so commitments vary between tests; also makes
     /// nonces deterministic for a given (run_id, node_id, round) triple.
     run_salt: [u8; 32],
+    /// Observer receives per-protocol-milestone callbacks so the agent
+    /// binary can render narratable stdout tags. Default: no-op.
+    observer: Box<dyn RuntimeObserver>,
 }
 
 impl<T: CoordinationTransport> CoordinationRuntime<T> {
@@ -230,10 +260,20 @@ impl<T: CoordinationTransport> CoordinationRuntime<T> {
         {
             return Err(RuntimeError::NoProviders);
         }
-        for node in &topology.nodes {
-            if !agents.contains_key(&node.id) {
-                return Err(RuntimeError::MissingPrivateIntent(node.id.to_hex()));
+        // In-process demo: every topology node has a local agent.
+        // Multi-process `node` subcommand: only this process's own agent is
+        // present, and we accept that as long as every supplied agent
+        // matches a topology node (reverse direction of the check still
+        // holds).
+        for id in agents.keys() {
+            if !topology.nodes.iter().any(|n| &n.id == id) {
+                return Err(RuntimeError::MissingPrivateIntent(id.to_hex()));
             }
+        }
+        if agents.is_empty() {
+            return Err(RuntimeError::MissingPrivateIntent(
+                "at least one local agent required".into(),
+            ));
         }
 
         let invalid_proof_schedule = scenario
@@ -259,6 +299,7 @@ impl<T: CoordinationTransport> CoordinationRuntime<T> {
             historical_commitments: BTreeMap::new(),
             max_rounds,
             run_salt: [0x5au8; 32],
+            observer: Box::new(NoopObserver),
         })
     }
 
@@ -266,6 +307,14 @@ impl<T: CoordinationTransport> CoordinationRuntime<T> {
     /// commitments stay reproducible across runs.
     pub fn with_run_salt(mut self, salt: [u8; 32]) -> Self {
         self.run_salt = salt;
+        self
+    }
+
+    /// Install a [`RuntimeObserver`] that receives per-event callbacks. The
+    /// default observer is a no-op — call this from the `node` subcommand
+    /// to render narratable stdout tags.
+    pub fn with_observer(mut self, observer: Box<dyn RuntimeObserver>) -> Self {
+        self.observer = observer;
         self
     }
 
@@ -280,6 +329,8 @@ impl<T: CoordinationTransport> CoordinationRuntime<T> {
             let round = self.round_machine.current_round();
             final_round = round;
             let outcome = self.run_one_round(round)?;
+            self.observer
+                .on_round_committed(round, matches!(outcome, RoundOutcome::Finalized));
             match outcome {
                 RoundOutcome::Finalized => {
                     finalized = true;
@@ -294,6 +345,8 @@ impl<T: CoordinationTransport> CoordinationRuntime<T> {
         self.log.set_final_round(final_round, finalized);
         if !finalized {
             self.log.set_abort_reason("max_rounds_exceeded");
+            self.observer
+                .on_abort("max_rounds_exceeded", final_round);
         }
         Ok(RuntimeOutcome {
             log: self.log,
@@ -509,6 +562,8 @@ impl<T: CoordinationTransport> CoordinationRuntime<T> {
                             kind: "commitment".into(),
                             reason_code: "log_duplicate".into(),
                         });
+                    } else {
+                        self.observer.on_commitment(rec.node_id, round);
                     }
                 }
                 Err(err) => {
@@ -525,6 +580,14 @@ impl<T: CoordinationTransport> CoordinationRuntime<T> {
 
     fn broadcast_proposal(&mut self, round: RoundId) -> Result<bool, RuntimeError> {
         let proposer = self.round_machine.current_proposer()?;
+        // In a multi-process run each node only speaks for itself. Only the
+        // process that actually *is* the proposer emits the proposal message.
+        // A single-process demo with all agents in `self.agents` emits it
+        // from whichever agent happens to be elected — same behaviour as
+        // before.
+        if !self.agents.contains_key(&proposer) {
+            return Ok(true);
+        }
         let req_id = self.topology.requester().id;
         let req_commit = match self
             .round_machine
@@ -614,7 +677,12 @@ impl<T: CoordinationTransport> CoordinationRuntime<T> {
                 continue;
             }
             match self.round_machine.accept_proposal(p.clone()) {
-                Ok(()) => self.log.append_proposal(p),
+                Ok(()) => {
+                    let cap = p.matched_capability.to_string();
+                    let proposer = p.proposer;
+                    self.log.append_proposal(p);
+                    self.observer.on_proposal(proposer, round, &cap);
+                }
                 Err(err) => self.log.append_rejection(RejectionRecord {
                     round,
                     node_id: p.proposer,
@@ -631,6 +699,11 @@ impl<T: CoordinationTransport> CoordinationRuntime<T> {
         proposal: &ProposalRecord,
     ) -> Result<(), RuntimeError> {
         for participant in [proposal.candidate_requester, proposal.candidate_provider] {
+            // Multi-process guard: only the node whose agent state this
+            // process holds emits its own proof.
+            if !self.agents.contains_key(&participant) {
+                continue;
+            }
             let commitment = self
                 .round_machine
                 .commitments()
@@ -713,7 +786,9 @@ impl<T: CoordinationTransport> CoordinationRuntime<T> {
                 });
                 continue;
             }
+            let node_id = rec.node_id;
             self.log.append_proof(rec);
+            self.observer.on_proof_verified(node_id, round);
         }
     }
 
@@ -723,6 +798,11 @@ impl<T: CoordinationTransport> CoordinationRuntime<T> {
         proposal: &ProposalRecord,
     ) -> Result<(), RuntimeError> {
         let provider = proposal.candidate_provider;
+        // Multi-process guard: only the matched-provider's own process
+        // signs and broadcasts the completion receipt.
+        if !self.agents.contains_key(&provider) {
+            return Ok(());
+        }
         let capability = proposal.matched_capability.to_string();
 
         // Prefer ed25519 when the provider has a signing seed configured.
@@ -800,7 +880,9 @@ impl<T: CoordinationTransport> CoordinationRuntime<T> {
                 });
                 continue;
             }
+            let provider = r.provider;
             self.log.append_receipt(r);
+            self.observer.on_receipt(provider, round);
         }
     }
 

@@ -24,7 +24,7 @@
 //! semantics live in `vertex-veil-core`.
 
 use std::collections::VecDeque;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use serde_json;
@@ -36,6 +36,16 @@ use tokio::runtime::Runtime;
 use tokio::time::timeout;
 
 use vertex_veil_core::{CoordinationMessage, CoordinationTransport, TransportError};
+
+/// Marker prefix for heartbeat transactions — keeps Vertex's consensus
+/// engine producing events between sparse application-level broadcasts.
+/// Heartbeats are filtered out before they reach the application.
+const HEARTBEAT_MARKER: &[u8] = b"HBT\0";
+
+/// Minimum gap between heartbeats. The warmup reference uses 500ms at a
+/// steady cadence; we pace inline with transport calls, which end up
+/// invoking heartbeats every few hundred ms anyway.
+const HEARTBEAT_INTERVAL_MS: u64 = 300;
 
 /// Raw configuration for bringing up a single Vertex node.
 ///
@@ -64,6 +74,11 @@ pub struct VertexTransport {
     /// consumed by the runtime. Consensus ordering is preserved.
     pending: VecDeque<CoordinationMessage>,
     poll_timeout: Duration,
+    /// Last time a heartbeat transaction was injected. Used to pace
+    /// inline heartbeats at `HEARTBEAT_INTERVAL_MS` so Vertex keeps
+    /// producing consensus events even when the application is between
+    /// protocol phases.
+    last_heartbeat: Instant,
 }
 
 impl VertexTransport {
@@ -110,10 +125,28 @@ impl VertexTransport {
             engine,
             pending: VecDeque::new(),
             poll_timeout: config.poll_timeout,
+            last_heartbeat: Instant::now()
+                .checked_sub(Duration::from_secs(1))
+                .unwrap_or_else(Instant::now),
         })
     }
 
+    /// Send a heartbeat transaction if the pacing interval has elapsed.
+    /// Inline because `Engine` is not `Send` — we cannot ship it to a
+    /// background tokio task. Every transport method calls this on entry
+    /// so heartbeats fire naturally at the protocol's cadence.
+    fn pulse_heartbeat(&mut self) {
+        if self.last_heartbeat.elapsed() < Duration::from_millis(HEARTBEAT_INTERVAL_MS) {
+            return;
+        }
+        let mut tx = Transaction::allocate(HEARTBEAT_MARKER.len());
+        tx.copy_from_slice(HEARTBEAT_MARKER);
+        let _ = self.engine.send_transaction(tx);
+        self.last_heartbeat = Instant::now();
+    }
+
     fn drain_one_event(&mut self) -> Result<bool, TransportError> {
+        self.pulse_heartbeat();
         let res = self.rt.block_on(async {
             match timeout(self.poll_timeout, self.engine.recv_message()).await {
                 Err(_) => Ok::<Option<Message>, tashi_vertex::Error>(None),
@@ -123,15 +156,25 @@ impl VertexTransport {
         match res {
             Err(_) => Err(TransportError::Closed),
             Ok(None) => Ok(false),
-            Ok(Some(Message::SyncPoint(_))) => Ok(false),
+            Ok(Some(Message::SyncPoint(_))) => {
+                // A SyncPoint is a consensus barrier delivery — it does
+                // NOT mean "no more events." Keep draining so we don't
+                // stop mid-batch just because a barrier arrived.
+                Ok(true)
+            }
             Ok(Some(Message::Event(event))) => {
                 for raw in event.transactions() {
+                    // Skip heartbeats; they keep the engine ticking but
+                    // never surface to the application.
+                    if raw.starts_with(HEARTBEAT_MARKER) {
+                        continue;
+                    }
                     match serde_json::from_slice::<CoordinationMessage>(raw) {
                         Ok(msg) => self.pending.push_back(msg),
                         Err(_) => {
-                            // Malformed transaction: skip. The runtime's
-                            // rejection path handles absent payloads when
-                            // the round drains.
+                            // Malformed application transaction: skip. The
+                            // runtime's rejection path handles absent
+                            // payloads when the round drains.
                         }
                     }
                 }
@@ -143,6 +186,7 @@ impl VertexTransport {
 
 impl CoordinationTransport for VertexTransport {
     fn broadcast(&mut self, msg: CoordinationMessage) -> Result<(), TransportError> {
+        self.pulse_heartbeat();
         let payload = serde_json::to_vec(&msg).map_err(|_| TransportError::Closed)?;
         let mut tx = Transaction::allocate(payload.len());
         tx.copy_from_slice(&payload);
@@ -152,6 +196,7 @@ impl CoordinationTransport for VertexTransport {
     }
 
     fn next_ordered(&mut self) -> Option<CoordinationMessage> {
+        self.pulse_heartbeat();
         if let Some(m) = self.pending.pop_front() {
             return Some(m);
         }
@@ -163,6 +208,7 @@ impl CoordinationTransport for VertexTransport {
     }
 
     fn flush(&mut self) {
+        self.pulse_heartbeat();
         // Drain any events already in-flight so the caller sees everything
         // that is currently ready without waiting.
         while let Ok(true) = self.drain_one_event() {}

@@ -26,10 +26,12 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use std::sync::Mutex;
+
 use vertex_veil_core::{
     read_coordination_log, ArtifactWriter, CompletionReceiptRecord, CoordinationLog,
-    CoordinationRuntime, OrderedBus, RunStatus, Scenario, StandaloneVerifier, TopologyConfig,
-    VerifierReport,
+    CoordinationRuntime, NodeId, OrderedBus, RoundId, RunStatus, RuntimeObserver, Scenario,
+    StandaloneVerifier, TopologyConfig, VerifierReport,
 };
 
 use crate::private_intents;
@@ -75,6 +77,10 @@ pub struct DemoArgs {
     /// any files this writer owns. Files from this writer's manifest only;
     /// unrelated files are always preserved.
     pub force: bool,
+    /// Emit narratable `[COORD]` / `[VERTEX]` / `[ABORT]` stdout tags at
+    /// each protocol milestone so the single-command demo is usable as a
+    /// live-narratable video. Defaults to false to keep tests quiet.
+    pub narrate: bool,
 }
 
 /// Run the demo end-to-end. Returns the full result (verifier report +
@@ -98,7 +104,7 @@ pub fn demo(args: DemoArgs) -> Result<DemoResult, RunError> {
         None => Scenario::empty(),
     };
 
-    let rt = CoordinationRuntime::new(
+    let mut rt = CoordinationRuntime::new(
         topology.clone(),
         OrderedBus::new(),
         agents,
@@ -106,6 +112,9 @@ pub fn demo(args: DemoArgs) -> Result<DemoResult, RunError> {
         args.max_rounds,
     )
     .map_err(|e| RunError::Runtime(e.to_string()))?;
+    if args.narrate {
+        rt = rt.with_observer(Box::new(DemoNarrator::new()));
+    }
     let outcome = rt
         .run(args.run_id.clone())
         .map_err(|e| RunError::Runtime(e.to_string()))?;
@@ -294,6 +303,83 @@ fn force_clean_owned_files(dir: &Path) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+/// Narrator observer for the single-process demo. Emits `[COORD]` /
+/// `[VERTEX]` / `[ABORT]` tags matching the `demo-bft` orchestrator's
+/// child outputs so the in-process demo reads with the same cadence as
+/// the multi-process one for a live-narratable video.
+struct DemoNarrator {
+    lock: Mutex<()>,
+}
+
+impl DemoNarrator {
+    fn new() -> Self {
+        DemoNarrator { lock: Mutex::new(()) }
+    }
+
+    fn emit(&self, tag: &str, detail: &str) {
+        let _g = self.lock.lock().ok();
+        println!("[demo] {tag} {detail}");
+    }
+}
+
+impl RuntimeObserver for DemoNarrator {
+    fn on_round_committed(&self, round: RoundId, finalized: bool) {
+        self.emit(
+            "[VERTEX]",
+            &format!("round {} committed (finalized={finalized})", round.value()),
+        );
+    }
+    fn on_commitment(&self, node: NodeId, round: RoundId) {
+        self.emit(
+            "[COORD]",
+            &format!(
+                "commitment from {} round={}",
+                short_id(&node),
+                round.value()
+            ),
+        );
+    }
+    fn on_proposal(&self, proposer: NodeId, round: RoundId, matched_capability: &str) {
+        self.emit(
+            "[COORD]",
+            &format!(
+                "proposal by {} ({}) round={}",
+                short_id(&proposer),
+                matched_capability,
+                round.value()
+            ),
+        );
+    }
+    fn on_proof_verified(&self, node: NodeId, round: RoundId) {
+        self.emit(
+            "[COORD]",
+            &format!(
+                "proof verified for {} round={}",
+                short_id(&node),
+                round.value()
+            ),
+        );
+    }
+    fn on_receipt(&self, provider: NodeId, round: RoundId) {
+        self.emit(
+            "[COORD]",
+            &format!(
+                "receipt signed by {} round={}",
+                short_id(&provider),
+                round.value()
+            ),
+        );
+    }
+    fn on_abort(&self, reason: &str, round: RoundId) {
+        self.emit("[ABORT]", &format!("{reason} at round={}", round.value()));
+    }
+}
+
+fn short_id(n: &NodeId) -> String {
+    let hex = n.to_hex();
+    format!("{}…", &hex[..8])
 }
 
 fn render_bundle_readme(status: &RunStatus) -> String {

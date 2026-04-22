@@ -1,0 +1,23 @@
+# Phase 5 BFT-baseline demo scenario.
+#
+# The adversarial event in this file is intentionally mild. The BFT demo's
+# failure is INJECTED EXTERNALLY — the `demo-bft` orchestrator kills one
+# child process mid-run and then restarts it with `--rejoin`. That's how
+# Tashi Vertex's failure-handling story is exercised: at the transport
+# layer, not as an in-protocol adversarial event.
+#
+# We keep a single `inject_invalid_proof` event from n2 in round 0 to
+# demonstrate that ZK-enforced protocol rejection still works alongside
+# BFT failure recovery. The runtime should reject the tampered proof,
+# fall back to round 1, and then complete (or abort coherently) after
+# the orchestrator's kill-and-rejoin cycle.
+#
+# The scenario file is public by construction: it names stable public
+# keys and round numbers only. No private witness values.
+
+version = 1
+
+[[events]]
+kind = "inject_invalid_proof"
+node = "2222222222222222222222222222222222222222222222222222222222222222"
+round = 0

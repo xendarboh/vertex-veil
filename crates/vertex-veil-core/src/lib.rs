@@ -60,6 +60,6 @@ pub use signing::{
 };
 pub use runtime::{
     AgentState, CoordinationMessage, CoordinationRuntime, CoordinationTransport, MessagePayload,
-    OrderedBus, RuntimeError, RuntimeOutcome, TransportError,
+    NoopObserver, OrderedBus, RuntimeError, RuntimeObserver, RuntimeOutcome, TransportError,
 };
 pub use verifier::{StandaloneVerifier, VerifierError};
