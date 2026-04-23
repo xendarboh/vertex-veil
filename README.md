@@ -24,7 +24,7 @@ The structural guarantee: every coordination round produces a public record suff
 
 Vertex Veil combines four things in one runnable system:
 
-- **Tashi Vertex ordering and failure handling** across a real multi-node cluster.
+- **Tashi Vertex ordering and failure handling** across a multi-node cluster.
 - **Noir ZK proofs** for requester/provider acceptance checks.
 - **Visible fallback and rejection handling** for invalid proofs, replay-like misuse, double-commit attempts, and dropped or silent participants.
 - **Third-party verifiability** from public artifacts alone.
@@ -134,7 +134,7 @@ nargo test --workspace
 
 ## Fastest Reproduction: Vertex Transport, Single Command
 
-This is the recommended first run for a fresh user. It uses the real Tashi Vertex transport, spawns four node processes, and writes one public bundle per node.
+This is the recommended first run for a fresh user. It uses the Tashi Vertex transport, spawns four node processes, and writes one public bundle per node.
 
 ```bash
 cargo run --release -p vertex-veil-agents --features vertex-transport -- \
@@ -161,7 +161,7 @@ What you should see in the aggregated output:
 - `[VERTEX] round N committed (finalized=true)`
 - child exit summaries with `valid=true`
 
-This flow is bounded: it runs a real Vertex-backed session to completion, writes artifacts, and exits.
+This flow is bounded: it runs a Vertex-backed session to completion, writes artifacts, and exits.
 
 ## Persistent Cluster and Manual Rejoin
 
@@ -295,7 +295,7 @@ cargo run --release -p vertex-veil-agents -- verify --artifacts <path-to-bundle>
 
 ## Deterministic Dev Path
 
-The repository still includes a deterministic in-process transport used for fast protocol debugging and repeatable local testing.
+The repository also includes a deterministic in-process transport used for fast protocol debugging and repeatable local testing.
 
 That path is exposed through `demo`:
 
@@ -307,4 +307,8 @@ cargo run --release -p vertex-veil-agents -- \
        --narrate
 ```
 
-It is useful for deterministic local iteration and exercising adversarial protocol scenarios without the network layer. But the main project story is the real Vertex-backed transport shown by `demo-bft` and `node --persist`.
+It is useful for deterministic local iteration and exercising adversarial protocol scenarios without the network layer. But the main project story is the Vertex-backed transport shown by `demo-bft` and `node --persist`.
+
+## References
+
+- [warmup-vertex-rust](https://github.com/xendarboh/warmup-vertex-rust) - demonstrates stateful handshake, heartbeats, and node recovery with Tashi Vertex for Rust.
