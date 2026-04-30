@@ -312,3 +312,12 @@ It is useful for deterministic local iteration and exercising adversarial protoc
 ## References
 
 - [warmup-vertex-rust](https://github.com/xendarboh/warmup-vertex-rust) - demonstrates stateful handshake, heartbeats, and node recovery with Tashi Vertex for Rust.
+
+## Resources
+
+<div align="center">
+
+[![View Slide Deck](./img/vertex-veil-slides-04-800x.png)](https://speakerdeck.com/xendarboh/vertex-veil-leaderless-coordination-over-private-intent)
+[View Slide Deck: Vertex Veil Overview](https://speakerdeck.com/xendarboh/vertex-veil-leaderless-coordination-over-private-intent)
+
+</div>
