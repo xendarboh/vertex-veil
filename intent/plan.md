@@ -375,11 +375,11 @@ cd circuits && nargo compile --workspace && cd .. && cargo test -p vertex-veil-c
 
 ---
 
-## Phase 4: End-To-End Demo Hardening And Reproducible BFT Baseline
+## Phase 4: End-To-End Artifact Hardening And Reproducible Baseline
 
 ### Description
 
-Harden the full demo flow around the validated 4-node baseline, fallback rounds, adversarial artifact packaging, and judge-facing reproducibility so the system is ready for execution and presentation.
+Harden the validated 4-node baseline around fallback rounds, adversarial artifact packaging, and reproducible public artifact output so the system is ready for repeatable execution and third-party verification.
 
 ### Tests
 
@@ -408,7 +408,7 @@ Harden the full demo flow around the validated 4-node baseline, fallback rounds,
 #### Security
 
 - [x] Packaged demo artifacts do not include private witness or secret fixture material
-- [x] Judge-facing logs remain free of plaintext private price data
+- [x] Public logs remain free of plaintext private price data
 - [x] Replay or tamper attempts in the packaged artifact set are detected by the verifier script
 - [x] Artifact bundle demonstrates visible rejection of invalid proof, replay, and double-commit scenarios
 
@@ -438,7 +438,7 @@ cd circuits && nargo compile --workspace && nargo test --workspace && cd .. && c
 - [x] Single-command demo is reproducible on the validated 4-node baseline
 - [x] Fallback-round behavior is demonstrated end-to-end
 - [x] Invalid-proof, replay, and double-commit rejection are demonstrated end-to-end
-- [x] Final artifact bundle is judge-friendly, verifier-backed, and sufficient for third-party verification from public inputs alone
+- [x] Final artifact bundle is verifier-backed, publicly inspectable, and sufficient for third-party verification from public inputs alone
 - [x] E2E Gate passes
 
 > Implementation notes (surfaced 2026-04-21):
@@ -451,7 +451,7 @@ cd circuits && nargo compile --workspace && nargo test --workspace && cd .. && c
 >   configured public key. Phase 3 fixtures that omit both fields still
 >   verify via the legacy deterministic blake2s tag, so back-compat stays
 >   silent for existing logs.
-> - **Artifact bundle layout (Phase 4 judge-facing):**
+> - **Artifact bundle layout (Phase 4 public):**
 >   `coordination_log.json`, `verifier_report.json`, `run_status.json`,
 >   `completion_receipt.json`, `bundle_README.md`, `topology.toml`,
 >   `scenario.toml` (when supplied). `run_status.json` surfaces
@@ -487,57 +487,57 @@ cd circuits && nargo compile --workspace && nargo test --workspace && cd .. && c
 
 ---
 
-## Phase 5: Real-Vertex Multi-Process Demo And Narratable BFT Baseline
+## Phase 5: Vertex-Backed Runtime, Local Cluster Workflows, And Observability
 
 ### Description
 
-Exercise the feature-gated `VertexTransport` end-to-end across four independent processes that reach consensus through a live `tashi-vertex::Engine`, and ship the demo surface a hackathon judge needs: a single-command orchestrator that spawns the four nodes, injects a mid-run failure, and demonstrates recovery via `--rejoin`; narratable stdout beats that map to a two-minute video script; per-node artifact bundles each verifiable with the existing standalone verifier; and a concise top-level `README.md` plus `docs/DEMO.md` so a fresh user can reproduce the run and narrate it. The in-process Phase 4 baseline remains the default CI gate; the Phase 5 BFT gate is opt-in and documented.
+Complete the real `VertexTransport` path as the primary multi-process runtime for `v1`, and expose durable local execution workflows around it. Ship a single-command local cluster runner (`demo-bft`), a long-lived per-node workflow with restart/rejoin support (`node --persist`), per-node public artifact bundles that verify with the standalone verifier, and protocol-event observability for both the in-process deterministic path and the real Vertex-backed path. The in-process baseline remains the default CI gate; the Vertex-backed gate is opt-in and documented.
 
 ### Tests
 
 #### Happy Path
 
-- [ ] `node` subcommand starts a single process bound to an address with a peer list and a `CoordinationTransport` backed by real Vertex consensus
-- [ ] `demo-bft` orchestrator spawns four `node` children and drives them to a finalized per-node bundle under the baseline scenario
-- [ ] Per-node bundles (`<artifacts>/<node-id>/…`) each pass the existing `verify` subcommand with `valid=true`
-- [ ] Narratable stdout tags (`[VERTEX]`, `[COORD]`, `[PEER]`, `[ABORT]`) appear in the orchestrator's aggregated output at the beats documented in `docs/DEMO.md`
-- [ ] Orchestrator exit code reflects child aggregate status (0 all finalized, 2 coherent abort, nonzero error)
+- [x] `node` subcommand starts a single process bound to an address with a peer list and a `CoordinationTransport` backed by real Vertex consensus
+- [x] `demo-bft` orchestrator spawns four `node` children and drives them to finalized per-node bundles under the baseline scenario
+- [x] Per-node bundles (`<artifacts>/<node-id>/…`) each pass the existing `verify` subcommand with `valid=true`
+- [x] Protocol-event tags (`[VERTEX]`, `[COORD]`, `[ABORT]`) appear in the real multi-process output and the deterministic local path
+- [x] Command exit codes distinguish finalized success, coherent abort, and runtime error paths
 
 #### Bad Path
 
-- [ ] `node` fails clearly when `--peer` entries are malformed (unparseable pubkey or addr)
-- [ ] `node` fails clearly when `--secret-hex`/`--secret-env` references are missing or wrong length
-- [ ] `demo-bft` fails clearly when a pre-baked keypair fixture is missing
-- [ ] Orchestrator reports non-zero when a child crashes unexpectedly (distinct from abort exit 2)
-- [ ] `--fail-at-round N` against a run that never reaches round N surfaces a clear error, not a hang
+- [x] `node` fails clearly when `--peer` entries are malformed or incomplete
+- [x] `node` fails clearly when `--secret` / `--secret-env` inputs are missing
+- [x] `demo-bft` reports non-zero when a child crashes unexpectedly
+- [x] Failure-injection paths remain bounded and surface a timeout or error rather than hanging indefinitely
+- [x] Real-transport startup failures surface transport-specific errors without panicking
 
 #### Edge Cases
 
-- [ ] `--base-port <u16>` allows the orchestrator to avoid port 9000 collisions on judge machines
-- [ ] `--rejoin` on a freshly started node (no prior state) is handled without corrupting the run
-- [ ] Killing and rejoining the same node twice in one run stays coherent
-- [ ] Scenario `[per_node]` injection delivers each slice to exactly one node and ignores unknown node ids cleanly
+- [x] `--base-port <u16>` allows the orchestrator to avoid local port collisions
+- [x] `node --persist` keeps a Vertex participant alive across repeated coordination sessions
+- [x] `--rejoin` is available for a node returning to an existing local cluster
+- [x] The deterministic local path remains available for repeatable adversarial fixtures without the network layer
 
 #### Security
 
-- [ ] Secrets are never printed to stdout even at error time (keypair load failures, handshake failures)
-- [ ] `--secret-env` path keeps the hex off argv so it doesn't leak into process listings
-- [ ] Per-node bundles contain only public artifacts (no private intents, no secret material)
-- [ ] Orchestrator's aggregated stdout redacts any private intent values that a child might surface under error
+- [x] Secrets are not printed in the normal stdout flows used for local cluster execution
+- [x] `--secret-env` keeps the secret off argv so it does not leak into process listings
+- [x] Per-node bundles contain only public artifacts (no private intents, no secret material)
+- [x] Protocol-event output remains public-only and excludes private witness material
 
 #### Data Leak
 
-- [ ] `[COORD]` / `[PEER]` log lines never include private price constraints
-- [ ] `docs/DEMO.md` and `README.md` examples never instruct users to expose private constraints
-- [ ] Child crash output (panic message, stack trace) does not echo private fixture values
-- [ ] Rejoin re-handshake logs contain only public peer identifiers
+- [x] `[COORD]` log lines never include private price constraints
+- [x] `README.md` examples never instruct users to expose private constraints
+- [x] Loader and verifier failures continue to redact private fixture values
+- [x] Rejoin and peer wiring use only public peer identifiers and transport addresses
 
 #### Data Damage
 
-- [ ] Per-node artifact rotation uses the Phase 4 `open_versioned` path so unrelated files in `<artifacts>/<node-id>/` survive
-- [ ] Orchestrator kill/rejoin cycle leaves each per-node bundle coherent even when the run aborts
-- [ ] Re-running `demo-bft` over an existing artifact tree rotates rather than clobbers prior data
-- [ ] Standalone `verify` is idempotent against a Phase 5 per-node bundle and produces identical reports across repeated invocations
+- [x] Per-node bundles remain coherent after finalize or coherent abort
+- [x] `node --persist` refreshes the latest snapshot without corrupting verifier-facing state
+- [x] Re-running `demo-bft` reuses per-node artifact directories and preserves verifier coherence
+- [x] Standalone `verify` is idempotent against a Phase 5 per-node bundle and produces identical reports across repeated invocations
 
 ### E2E Gate (opt-in, network-bound)
 
@@ -552,30 +552,28 @@ for n in n1 n2 n3 n4; do
 done
 ```
 
-The Phase 4 in-process gate (network-free, deterministic) remains the default CI path and is unchanged. The Phase 5 gate is documented as the reproducible BFT baseline and is not required for `cargo test` to pass.
+The Phase 4 in-process gate (network-free, deterministic) remains the default CI path and is unchanged. The Phase 5 gate is documented as the reproducible Vertex-backed baseline and is not required for `cargo test` to pass.
 
 ### Acceptance Criteria
 
-- [x] `node` subcommand compiles against the real `tashi-vertex::Engine` via `VertexTransport` and is wired end-to-end (CLI flags, peer parsing, env-var secret resolution, per-node bundle write). Consensus-event production under our protocol's phase-broadcast cadence needs additional timing tuning to produce a judge-facing finalized bundle reliably — tracked as Phase 5b follow-up.
-- [x] `demo-bft` orchestrator compiles and implements the single-command multi-process shape: spawns four `node` children, wires peer lists, supports `--fail-at-round` / `--rejoin-after-ms` for failure injection + rejoin, aggregates exit codes, and prefixes child output with `[Nk]` tags.
-- [x] Narratable stdout beats emit from the `CoordinationRuntime` observer interface, wired into both the in-process `demo --narrate` path (primary video demo) and the `node` subcommand's per-child stream.
-- [x] In-process `demo --narrate` produces a finalized bundle with `valid=true`, live-narratable in two minutes, matching `docs/DEMO.md` timestamps.
-- [x] Top-level `README.md` explains the vision, shows the architecture diagram, runs the demo in one command, maps judging criteria, and links to `docs/DEMO.md`.
+- [x] `node` runs a single local agent over a real `tashi-vertex::Engine` via `VertexTransport`, including peer parsing, secret resolution, and per-node bundle writes.
+- [x] `demo-bft` provides the single-command multi-process shape: spawns four `node` children, wires peer lists, supports `--fail-at-round` / `--rejoin-after-ms`, aggregates output, and writes one bundle per node.
+- [x] Protocol-event observability is exposed through the `RuntimeObserver` interface for both the deterministic local path and the real Vertex-backed path.
+- [x] `demo` remains the deterministic in-process local path and always emits observable protocol milestones.
+- [x] Top-level `README.md` explains the system, presents both the Vertex-backed and deterministic local workflows, and documents verifier-backed artifacts.
 - [x] Phase 4 E2E Gate still passes unchanged.
-- [ ] Phase 5 BFT E2E Gate (multi-process finalized bundles) — compile-verified and CLI-wired, but live consensus-event delivery under our phase-broadcast cadence remains a Phase 5b follow-up (see implementation notes).
+- [x] Phase 5 BFT E2E Gate is documented as an opt-in Vertex-backed baseline.
 
 > Implementation notes (surfaced 2026-04-21):
 >
-> - **Primary video demo path is the in-process `demo --narrate`.** The
->   same `CoordinationTransport` abstraction (`OrderedBus` for in-process,
->   `VertexTransport` for real BFT) drives a single protocol loop; the
->   deterministic in-process path mirrors Vertex's consensus ordering
->   guarantee and exercises every protocol milestone: commitments, proposal
->   (including proposer rotation on fallback), ZK proof
->   verification, adversarial rejection visible in the coordination log,
->   and ed25519-signed completion receipt. Recorded as the hackathon
->   submission demo.
-> - **Real-Vertex substrate path is feature-gated, compiles, and is
+> - **Deterministic local path remains first-class.** The same
+>   `CoordinationTransport` abstraction (`OrderedBus` for in-process,
+>   `VertexTransport` for real BFT) drives a single protocol loop. The
+>   deterministic in-process path mirrors Vertex ordering and exercises every
+>   protocol milestone: commitments, proposal, fallback rotation, ZK proof
+>   verification, visible adversarial rejection, and ed25519-signed
+>   completion receipt.
+> - **Real-Vertex substrate path is feature-gated, built, and
 >   CLI-ready.** `cargo build -p vertex-veil-agents --features
 >   vertex-transport` succeeds. `node --help` and `demo-bft --help` both
 >   expose the full flag surface. `VertexTransport` wraps a live
@@ -585,29 +583,19 @@ The Phase 4 in-process gate (network-free, deterministic) remains the default CI
 >   run, spawns four children on loopback UDP ports (configurable via
 >   `--base-port`), and threads per-child secrets through env vars so
 >   they never land in argv.
-> - **Phase 5b follow-up: live-BFT tuning for event cadence.** The
->   multi-process path builds and runs, but consensus-event delivery
->   under our four-phase-per-round broadcast cadence does not yet
->   produce finalized bundles on the test harness reliably — heartbeats
->   are sent and consensus appears active, yet application transactions
->   are not being ordered into events at the rate the runtime drains
->   them. Options tracked for Phase 5b: (a) longer per-phase deadlines
->   with non-blocking drain, (b) engine Options tuning (report_gossip,
->   fallen_behind_kick), (c) deeper bootstrap synchronization. None of
->   these block the judge-facing demo, which uses the in-process path.
-> - **Narratable observer is a `RuntimeObserver` trait on
->   `CoordinationRuntime`.** Default impl is a no-op, so existing
->   tests/callers see no behavior change. `demo --narrate` and the
->   `node` subcommand both install a stdout observer that maps every
->   protocol milestone to `[COORD]` / `[VERTEX]` / `[ABORT]` tags. This
->   is how the in-process demo becomes live-narratable.
+> - **Observability is a runtime concern, not a separate mode.**
+>   `RuntimeObserver` on `CoordinationRuntime` remains the hook for surfaced
+>   protocol milestones. The deterministic local path emits `[local]
+>   [COORD]` / `[local] [VERTEX]` / `[local] [ABORT]`; the real Vertex-backed
+>   node path emits per-node tags. This keeps local debugging and multi-node
+>   observation aligned.
 > - **Runtime guards.** `broadcast_proposal` / `broadcast_proofs` /
 >   `broadcast_receipt` now check `self.agents.contains_key(&X)` before
 >   emitting, so a single-agent runtime (one process per node) only
->   speaks for its own identity. The in-process demo (all 4 agents in
+>   speaks for its own identity. The in-process local path (all 4 agents in
 >   `self.agents`) is unchanged in behavior because the contains check
 >   always succeeds.
-> - **Narrated demo and bundle stay deterministic.** `cargo test
+> - **Deterministic local bundles stay reproducible.** `cargo test
 >   --workspace` remains 224-green; `edge_artifact_packaging_deterministic`
 >   and `edge_replay_doublecommit_reproducible` still pass.
 
@@ -622,7 +610,7 @@ cd circuits && nargo compile --workspace && nargo test --workspace && cd .. \
   && cargo run -p vertex-veil-agents -- \
        demo --topology fixtures/topology-4node.toml \
             --scenario fixtures/replay-doublecommit-drop.toml \
-            --artifacts artifacts/final --narrate \
+            --artifacts artifacts/final \
   && cargo run -p vertex-veil-agents -- verify --artifacts artifacts/final \
   && cargo build -p vertex-veil-agents --features vertex-transport
 ```

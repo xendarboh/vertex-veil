@@ -169,7 +169,7 @@ This flow is bounded: it runs a Vertex-backed session to completion, writes arti
 
 ## Persistent Cluster and Manual Rejoin
 
-If you want a multi-terminal demo that stays alive long enough to kill and restart nodes manually, use `node --persist`.
+If you want a multi-terminal local cluster that stays alive long enough to kill and restart nodes manually, use `node --persist`.
 
 Open four terminals in `vertex-veil/` and run:
 
@@ -218,7 +218,7 @@ To stop the whole cluster:
 
 Notes:
 
-- `--persist` is the long-lived manual demo path.
+- `--persist` is the long-lived manual cluster path.
 - `--rejoin` is only for a node that is returning to an existing running cluster.
 - `verify` always checks the latest completed session snapshot currently stored in that node's artifact directory.
 
@@ -297,7 +297,7 @@ You can verify any saved bundle with:
 cargo run --release -p vertex-veil-agents -- verify --artifacts <path-to-bundle>
 ```
 
-## Deterministic Dev Path
+## Deterministic Local Dev Path
 
 The repository also includes a deterministic in-process transport used for fast protocol debugging and repeatable local testing.
 
@@ -307,11 +307,10 @@ That path is exposed through `demo`:
 cargo run --release -p vertex-veil-agents -- \
   demo --topology fixtures/topology-4node.toml \
        --scenario fixtures/replay-doublecommit-drop.toml \
-       --artifacts artifacts/demo \
-       --narrate
+       --artifacts artifacts/local
 ```
 
-It is useful for deterministic local iteration and exercising adversarial protocol scenarios without the network layer. But the main project story is the Vertex-backed transport shown by `demo-bft` and `node --persist`.
+This path runs entirely in process over the deterministic `OrderedBus` transport and emits the same protocol event tags (`[COORD]`, `[VERTEX]`, `[ABORT]`) used to inspect local protocol progress. It is useful for deterministic iteration and exercising adversarial scenarios without the network layer. The primary transport path remains the Vertex-backed flow exposed by `demo-bft` and `node --persist`.
 
 ## References
 
