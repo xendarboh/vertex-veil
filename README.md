@@ -1,7 +1,11 @@
 # Vertex Veil
 
 <div align="center">
-  <img src="./img/vertex-veil-002--720x720.png" alt="VV-Logo" width="720">
+
+[![VV-Logo](./img/vertex-veil-002--720x720.png)](https://speakerdeck.com/xendarboh/vertex-veil-leaderless-coordination-over-private-intent)
+
+[View Slide Deck: Vertex Veil Overview](https://speakerdeck.com/xendarboh/vertex-veil-leaderless-coordination-over-private-intent)
+
 </div>
 
 ## Leaderless agent coordination over private intent
