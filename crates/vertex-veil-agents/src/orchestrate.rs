@@ -236,8 +236,8 @@ pub fn run_orchestrator(args: OrchestrateArgs) -> Result<OrchestrateResult, Orch
     // Pull exit codes from the global map tracked during the loop. We read
     // what's remembered on the channel; surviving children we already
     // kicked above had status printed. For simplicity we don't track each
-    // exit code separately here beyond the "OK vs not OK" aggregate. A
-    // judge can still `verify` each per-node bundle.
+    // exit code separately here beyond the "OK vs not OK" aggregate. An
+    // operator can still `verify` each per-node bundle.
     let children_finalized = bundle_dirs
         .iter()
         .filter(|d| {
@@ -389,7 +389,7 @@ fn spawn_one(
             // Pass line through to the user's terminal verbatim. Children
             // already prefix their own lines with `[alias]`.
             println!("{line}");
-            // Parse for round-committed narratives.
+            // Parse for round-committed event lines.
             if let Some(r) = parse_round_committed(&line) {
                 let _ = evs.send(OrchEvent::RoundCommitted {
                     alias: alias_for_out.clone(),
@@ -428,4 +428,3 @@ fn parse_round_committed(line: &str) -> Option<u64> {
     let num: u64 = words.next()?.parse().ok()?;
     Some(num)
 }
-

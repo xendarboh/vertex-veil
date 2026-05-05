@@ -3,8 +3,7 @@
 //! Phase 3 wired the `demo` subcommand to the coordination runtime and the
 //! `verify` subcommand to the standalone verifier. Phase 4 hardens the
 //! bundle layout, persists aborts as a coherent artifact set, and adds
-//! directory versioning so the single-command judge flow does not destroy
-//! prior runs on replay.
+//! directory versioning so replaying a run does not destroy prior bundles.
 
 use std::process::ExitCode;
 
@@ -36,7 +35,6 @@ fn dispatch(cli: Cli) -> Result<ExitCode, Box<dyn std::error::Error>> {
             max_rounds,
             run_id,
             force,
-            narrate,
         } => {
             let result = demo(DemoArgs {
                 topology,
@@ -46,7 +44,6 @@ fn dispatch(cli: Cli) -> Result<ExitCode, Box<dyn std::error::Error>> {
                 max_rounds,
                 run_id: run_id.clone(),
                 force,
-                narrate,
             })?;
             if let Some(prev) = &result.rotated_prev {
                 eprintln!(
@@ -55,7 +52,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, Box<dyn std::error::Error>> {
                 );
             }
             eprintln!(
-                "vertex-veil-agents: demo run_id={} final_round={} finalized={} valid={}{}{}",
+                "vertex-veil-agents: local run_id={} final_round={} finalized={} valid={}{}{}",
                 run_id,
                 result.report.final_round.value(),
                 result.finalized,
@@ -72,13 +69,13 @@ fn dispatch(cli: Cli) -> Result<ExitCode, Box<dyn std::error::Error>> {
             );
             if !result.report.valid {
                 return Err(format!(
-                    "verifier rejected the demo log: {:?}",
+                    "verifier rejected the local run log: {:?}",
                     result.report.reasons
                 )
                 .into());
             }
             if !result.finalized {
-                // Aborted runs exit non-zero so CI / demo scripts can detect
+                // Aborted runs exit non-zero so CI / scripts can detect
                 // the threshold-exceeded path without parsing artifacts.
                 return Ok(ExitCode::from(2));
             }

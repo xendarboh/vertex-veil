@@ -80,7 +80,6 @@ fn args(
         max_rounds,
         run_id: format!("test-{name}"),
         force,
-        narrate: false,
     }
 }
 
@@ -236,7 +235,6 @@ fn bad_demo_fails_clearly_for_malformed_node_config() {
         max_rounds: 4,
         run_id: "bad".into(),
         force: false,
-        narrate: false,
     };
     let err = run(a).expect_err("malformed topology must error");
     assert!(matches!(err, RunError::Topology(_)));
@@ -444,7 +442,6 @@ budget_cents = "{secret_marker}"
         max_rounds: 4,
         run_id: "redact".into(),
         force: false,
-        narrate: false,
     };
     let err = run(a).expect_err("malformed private intent must error");
     let msg = format!("{err}");
@@ -584,7 +581,6 @@ budget_cents = "{secret_marker}"
         max_rounds: 4,
         run_id: "leak".into(),
         force: false,
-        narrate: false,
     };
     let err = run(a).expect_err("must error");
     let msg = format!("{err}");
@@ -643,7 +639,6 @@ fn damage_re_run_versions_existing_bundle() {
         max_rounds: 4,
         run_id: "rotation".into(),
         force: false,
-        narrate: false,
     };
     let r2 = run(a2).expect("second run ok");
     assert!(r2.rotated_prev.is_some());
@@ -665,7 +660,7 @@ fn damage_re_run_does_not_touch_unrelated_files() {
     let dir = a.artifacts.clone();
     let _ = run(a).unwrap();
     // Drop an unrelated file in the bundle.
-    let unrelated = dir.join("judge-notes.md");
+    let unrelated = dir.join("operator-notes.md");
     fs::write(&unrelated, b"hand-written notes").unwrap();
 
     // Re-run with rotation: the entire prior dir is moved, so the
@@ -678,12 +673,11 @@ fn damage_re_run_does_not_touch_unrelated_files() {
         max_rounds: 4,
         run_id: "preserve".into(),
         force: false,
-        narrate: false,
     };
     let r2 = run(a2).unwrap();
     let prev = r2.rotated_prev.unwrap();
     assert_eq!(
-        fs::read_to_string(prev.join("judge-notes.md")).unwrap(),
+        fs::read_to_string(prev.join("operator-notes.md")).unwrap(),
         "hand-written notes"
     );
     // And: --force re-run preserves the unrelated file in the same dir.
@@ -696,7 +690,6 @@ fn damage_re_run_does_not_touch_unrelated_files() {
         max_rounds: 4,
         run_id: "preserve-force".into(),
         force: true,
-        narrate: false,
     };
     let _ = run(a3).unwrap();
     assert_eq!(fs::read_to_string(dir.join("more-notes.md")).unwrap(), "more");

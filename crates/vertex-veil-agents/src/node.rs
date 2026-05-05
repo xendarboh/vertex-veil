@@ -2,10 +2,9 @@
 //!
 //! A `node` process runs ONE agent (one entry from the private-intent
 //! bundle), speaks on the `VertexTransport`, and writes its own artifact
-//! bundle to `<artifacts>/<node-alias>/`. Narratable stdout tags
-//! (`[VERTEX]`, `[COORD]`, `[ABORT]`) are emitted at protocol milestones
-//! so the orchestrator can interleave per-node streams for a live-narratable
-//! demo.
+//! bundle to `<artifacts>/<node-alias>/`. Protocol event tags (`[VERTEX]`,
+//! `[COORD]`, `[ABORT]`) are emitted at protocol milestones so the
+//! orchestrator can interleave per-node streams for local observation.
 //!
 //! Gated behind the `vertex-transport` cargo feature; not compiled in the
 //! default build.
@@ -442,7 +441,7 @@ fn render_bundle_readme(status: &RunStatus, alias: &str) -> String {
 
 // Stdout observer ------------------------------------------------------------
 
-/// Emits narratable protocol events as `[N-alias] [TAG] …` lines. Wraps the
+/// Emits protocol events as `[N-alias] [TAG] ...` lines. Wraps the
 /// inner write target in a Mutex so the orchestrator sees complete lines
 /// even under tokio-runtime-driven concurrency.
 struct StdoutObserver {

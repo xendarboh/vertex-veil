@@ -335,7 +335,7 @@ impl ArtifactWriter {
         Ok(out)
     }
 
-    /// Write the judge-facing run status summary. Safe to overwrite.
+    /// Write the public run status summary. Safe to overwrite.
     pub fn write_run_status(&self, status: &RunStatus) -> Result<PathBuf, ArtifactError> {
         let out = self.dir.join("run_status.json");
         let json = serde_json::to_string_pretty(status).map_err(ArtifactError::serialization)?;
@@ -344,7 +344,7 @@ impl ArtifactWriter {
     }
 
     /// Write the extracted completion receipt (if any) as its own file for
-    /// judge convenience. Overwriting is allowed. Returns `None` when the
+    /// artifact-level convenience. Overwriting is allowed. Returns `None` when the
     /// log contains no receipt.
     pub fn write_receipt_copy(
         &self,

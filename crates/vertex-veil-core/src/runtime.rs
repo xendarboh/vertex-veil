@@ -125,7 +125,7 @@ impl CoordinationTransport for OrderedBus {
     }
 }
 
-/// Narratable runtime events. Implementations receive a callback for each
+/// Runtime events. Implementations receive a callback for each
 /// significant protocol milestone so the agent binary can map them to
 /// human-readable stdout tags (`[VERTEX]`, `[COORD]`, `[ABORT]`) without the
 /// runtime itself touching stdout. Default no-op implementations keep the
@@ -230,7 +230,7 @@ pub struct CoordinationRuntime<T: CoordinationTransport> {
     /// nonces deterministic for a given (run_id, node_id, round) triple.
     run_salt: [u8; 32],
     /// Observer receives per-protocol-milestone callbacks so the agent
-    /// binary can render narratable stdout tags. Default: no-op.
+    /// binary can render protocol event tags. Default: no-op.
     observer: Box<dyn RuntimeObserver>,
 }
 
@@ -311,8 +311,8 @@ impl<T: CoordinationTransport> CoordinationRuntime<T> {
     }
 
     /// Install a [`RuntimeObserver`] that receives per-event callbacks. The
-    /// default observer is a no-op — call this from the `node` subcommand
-    /// to render narratable stdout tags.
+    /// default observer is a no-op; callers install one when they want
+    /// protocol events surfaced to stdout or another sink.
     pub fn with_observer(mut self, observer: Box<dyn RuntimeObserver>) -> Self {
         self.observer = observer;
         self

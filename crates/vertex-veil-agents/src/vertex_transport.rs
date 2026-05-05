@@ -2,9 +2,10 @@
 //!
 //! This module is gated behind the `vertex-transport` cargo feature because
 //! it pulls in `tashi-vertex` (network-dependent) and `tokio` (async
-//! runtime). The default gate for the Phase 4 demo uses the in-process
-//! [`vertex_veil_core::OrderedBus`]; this path exists so a judge can run
-//! the 4-node baseline against real consensus-ordered delivery.
+//! runtime). The default gate for the Phase 4 local path uses the in-process
+//! [`vertex_veil_core::OrderedBus`]; this path exists so operators and
+//! developers can run the 4-node baseline against real consensus-ordered
+//! delivery.
 //!
 //! Design notes:
 //!

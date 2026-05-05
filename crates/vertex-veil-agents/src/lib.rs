@@ -40,9 +40,10 @@ pub struct Cli {
 /// Subcommands exposed by the CLI.
 #[derive(Debug, Subcommand)]
 pub enum Command {
-    /// Run a demo coordination flow against a topology fixture. Writes a
-    /// full public artifact bundle (coordination log, verifier report, run
-    /// status, completion receipt, README) to the artifact directory.
+    /// Run a deterministic in-process coordination flow against a topology
+    /// fixture. Writes a full public artifact bundle (coordination log,
+    /// verifier report, run status, completion receipt, README) to the
+    /// artifact directory.
     Demo {
         /// Topology configuration file (TOML).
         #[arg(long)]
@@ -67,11 +68,6 @@ pub enum Command {
         /// preserved; only files owned by this writer are replaced.
         #[arg(long, default_value_t = false)]
         force: bool,
-        /// Emit narratable `[COORD]` / `[VERTEX]` / `[ABORT]` stdout
-        /// tags so the single-command run reads like a live-narratable
-        /// video while still writing the full artifact bundle.
-        #[arg(long, default_value_t = false)]
-        narrate: bool,
     },
     /// Run the standalone verifier against a saved artifact directory.
     Verify {

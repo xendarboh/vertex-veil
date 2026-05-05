@@ -1,14 +1,15 @@
-//! Demo and verify entry points for the CLI.
+//! Local-run and verify entry points for the CLI.
 //!
-//! `demo` runs a coordination round against the configured topology, applies
-//! an optional adversarial scenario, and writes a public artifact bundle
-//! into the artifacts directory. The bundle layout is:
+//! `demo` runs a deterministic in-process coordination round against the
+//! configured topology, applies an optional adversarial scenario, and writes
+//! a public artifact bundle into the artifacts directory. The bundle layout
+//! is:
 //!
 //! ```text
 //! artifacts/<run>/
 //!   coordination_log.json   # ordered public record of the run
 //!   verifier_report.json    # standalone verifier's decision
-//!   run_status.json         # judge-facing summary
+//!   run_status.json         # public run summary
 //!   completion_receipt.json # present when the run finalized
 //!   topology.toml           # copy of the topology the run used
 //!   scenario.toml           # copy of the adversarial scenario, if any
@@ -56,7 +57,7 @@ pub enum RunError {
     Aborted(String),
 }
 
-/// Outcome of a `demo` run surfaced to the CLI dispatcher.
+/// Outcome of a local `demo` run surfaced to the CLI dispatcher.
 #[derive(Debug)]
 pub struct DemoResult {
     pub report: VerifierReport,
@@ -65,7 +66,7 @@ pub struct DemoResult {
     pub rotated_prev: Option<PathBuf>,
 }
 
-/// Configured demo arguments gathered from the CLI.
+/// Configured local-run arguments gathered from the CLI.
 pub struct DemoArgs {
     pub topology: PathBuf,
     pub private_intents: Option<PathBuf>,
@@ -77,13 +78,9 @@ pub struct DemoArgs {
     /// any files this writer owns. Files from this writer's manifest only;
     /// unrelated files are always preserved.
     pub force: bool,
-    /// Emit narratable `[COORD]` / `[VERTEX]` / `[ABORT]` stdout tags at
-    /// each protocol milestone so the single-command demo is usable as a
-    /// live-narratable video. Defaults to false to keep tests quiet.
-    pub narrate: bool,
 }
 
-/// Run the demo end-to-end. Returns the full result (verifier report +
+/// Run the deterministic local flow end-to-end. Returns the full result (verifier report +
 /// outcome metadata).
 pub fn demo(args: DemoArgs) -> Result<DemoResult, RunError> {
     let topology = TopologyConfig::load(&args.topology)
@@ -104,17 +101,15 @@ pub fn demo(args: DemoArgs) -> Result<DemoResult, RunError> {
         None => Scenario::empty(),
     };
 
-    let mut rt = CoordinationRuntime::new(
+    let rt = CoordinationRuntime::new(
         topology.clone(),
         OrderedBus::new(),
         agents,
         scenario.clone(),
         args.max_rounds,
     )
-    .map_err(|e| RunError::Runtime(e.to_string()))?;
-    if args.narrate {
-        rt = rt.with_observer(Box::new(DemoNarrator::new()));
-    }
+    .map_err(|e| RunError::Runtime(e.to_string()))?
+    .with_observer(Box::new(LocalObserver::new()));
     let outcome = rt
         .run(args.run_id.clone())
         .map_err(|e| RunError::Runtime(e.to_string()))?;
@@ -280,8 +275,8 @@ fn list_bundle_files(dir: &Path) -> Vec<String> {
 }
 
 /// Filenames owned by this writer. [`demo --force`] overwrites these in
-/// place and leaves unrelated files alone so judges can drop auxiliary
-/// notes into the artifact directory without fearing data loss.
+/// place and leaves unrelated files alone so operators can keep auxiliary
+/// notes in the artifact directory without fearing data loss.
 const OWNED_FILES: &[&str] = &[
     "coordination_log.json",
     "verifier_report.json",
@@ -305,26 +300,25 @@ fn force_clean_owned_files(dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Narrator observer for the single-process demo. Emits `[COORD]` /
-/// `[VERTEX]` / `[ABORT]` tags matching the `demo-bft` orchestrator's
-/// child outputs so the in-process demo reads with the same cadence as
-/// the multi-process one for a live-narratable video.
-struct DemoNarrator {
+/// Observer for the single-process local run. Emits `[COORD]` /
+/// `[VERTEX]` / `[ABORT]` tags so deterministic local execution exposes
+/// the same protocol milestones as the multi-process paths.
+struct LocalObserver {
     lock: Mutex<()>,
 }
 
-impl DemoNarrator {
+impl LocalObserver {
     fn new() -> Self {
-        DemoNarrator { lock: Mutex::new(()) }
+        LocalObserver { lock: Mutex::new(()) }
     }
 
     fn emit(&self, tag: &str, detail: &str) {
         let _g = self.lock.lock().ok();
-        println!("[demo] {tag} {detail}");
+        println!("[local] {tag} {detail}");
     }
 }
 
-impl RuntimeObserver for DemoNarrator {
+impl RuntimeObserver for LocalObserver {
     fn on_round_committed(&self, round: RoundId, finalized: bool) {
         self.emit(
             "[VERTEX]",
