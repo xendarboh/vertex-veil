@@ -148,15 +148,88 @@
 - **Decision**: Record a signed completion receipt from the matched provider plus requester acknowledgement.
 - **Rationale**: This is enough to make the full coordination loop auditable without prematurely expanding into full result-publication semantics.
 
+### 25. Synced execution record contract
+
+- **Question**: What should the implementation-complete `v1` sync treat as the finalized public execution evidence?
+- **Decision**: Treat requester-side proof plus provider completion receipt as the finalized public execution evidence for `v1`, and defer a distinct persisted requester acknowledgement artifact as a future protocol enhancement.
+- **Rationale**: The current implementation finalizes and verifies around requester/provider proof publication plus a provider-signed completion receipt. This preserves a faithful sync to implementation reality without treating the missing acknowledgement artifact as a blocker.
+
+### 26. Transport framing after implementation
+
+- **Question**: How should transport be framed now that both the real and deterministic local paths exist?
+- **Decision**: Frame transport as Vertex-primary with a deterministic local mirror used for testing and local development.
+- **Rationale**: The real runtime path is the Vertex-backed multi-process flow, but the repository also intentionally maintains a deterministic local mirror of the same protocol loop for reproducibility and fast iteration.
+
+### 27. Proof-model framing after implementation
+
+- **Question**: How should the proof model be described now that the Noir integration is complete?
+- **Decision**: Describe the proof model as real per-agent Noir validation with a default ACIR `execute` path and an optional full-proof backend path.
+- **Rationale**: This matches implementation reality: the default path performs real Noir constraint validation and emits public proof artifacts, while an optional stronger backend can be enabled without changing the protocol flow.
+
+### 28. Persistent artifact schema
+
+- **Question**: What exact public bundle shape should be treated as the finalized verifier-facing artifact contract?
+- **Decision**: The synced `v1` artifact bundle is `coordination_log.json`, `verifier_report.json`, `run_status.json`, `completion_receipt.json` when finalized, `bundle_README.md`, `topology.toml`, and `scenario.toml` when supplied.
+- **Rationale**: This is the stable implementation reality produced by the CLI surfaces and consumed by the standalone verifier workflow.
+
+### 29. Receipt-signing model
+
+- **Question**: How should completion receipt signing be described in the synced `v1` contract?
+- **Decision**: Sync `v1` as Ed25519-primary for provider completion receipts, while leaving future cryptographic agility open.
+- **Rationale**: Ed25519 is the current durable implementation contract. Legacy compatibility behavior exists only as implementation history and should not be elevated into the long-term `v1` project contract.
+
+### 30. Observability framing
+
+- **Question**: How should protocol observability be represented in intent artifacts?
+- **Decision**: Describe observability in neutral behavioral terms as public-only protocol milestone visibility across deterministic local and Vertex-backed execution paths.
+- **Rationale**: The durable contract is that operators can inspect the same protocol milestones across both runtime paths; concrete stdout prefixes are implementation details, not project-defining terminology.
+
+### 31. Runtime path framing after Phase 5
+
+- **Question**: How should the implementation-complete runtime surfaces be framed now that the real multi-process Vertex path and the deterministic local path both exist?
+- **Decision**: Treat the Vertex-backed multi-process path as the primary runtime surface for real local-cluster execution, while keeping the deterministic local mirror as the default reproducible and network-free path for testing, CI, and rapid iteration.
+- **Rationale**: This matches the implemented system shape. The real `tashi-vertex` transport is now wired through the `node` and `demo-bft` workflows, but the repository intentionally keeps the deterministic mirror first-class because it exercises the same protocol logic without network dependencies.
+
+### 32. Per-node artifact bundle contract
+
+- **Question**: How should artifact packaging be described now that the Vertex-backed workflow emits one bundle per process?
+- **Decision**: Keep one verifier-facing bundle schema, and apply it either once for the deterministic `demo` path or once per node under `<artifacts>/<node-alias>/` for the Vertex-backed path.
+- **Rationale**: The bundle contents are intentionally identical across runtime modes so the standalone verifier and public artifact story do not fork by transport or execution style.
+
+### 33. Configuration surface split
+
+- **Question**: How should public configuration and private witness configuration be represented in the synced `v1` contract?
+- **Decision**: Treat `topology.toml` as the public runtime configuration surface and the private-intent TOML bundle as a separate, cross-validated witness surface that never ships in verifier-facing artifacts.
+- **Rationale**: This is the implemented contract: topology and artifact bundles remain public-only, while private budgets, reservation prices, and optional signing seeds stay in the private-intent file and are not required for third-party verification.
+
+### 34. Signing-key placement
+
+- **Question**: Where should completion-receipt verification keys and signing keys live in the synced contract?
+- **Decision**: Keep `signing_public_key` in the public topology and the matching `signing_secret_key` in the private-intent bundle when Ed25519 signing is enabled.
+- **Rationale**: This preserves public verifiability of receipts while keeping private signing material out of the public bundle and aligned with the existing fixture and loader contract.
+
+### 35. Demo private-intent discovery
+
+- **Question**: What should the deterministic local `demo` path do when the operator omits `--private-intents`?
+- **Decision**: Default to a sibling `<topology-stem>.private.toml` file beside the selected topology.
+- **Rationale**: This matches the implemented CLI contract and keeps the common local workflow concise without weakening the explicit public/private file split.
+
+### 36. Persistent session snapshot contract
+
+- **Question**: How should repeated `node --persist` sessions be represented in the synced runtime contract?
+- **Decision**: Treat the per-node artifact directory as a rolling latest-session snapshot and suffix each persisted session run id as `<run_id>-rNNN`.
+- **Rationale**: This is the stable implementation behavior: operators get one predictable per-node bundle path for inspection while each completed session still carries a distinct public run id.
+
+### 37. Vertex transport secret input
+
+- **Question**: How should the single-node Vertex runtime accept its transport secret in the synced CLI contract?
+- **Decision**: Support both `--secret-env` and `--secret`, while preferring `--secret-env` so the transport secret does not appear in argv or process listings.
+- **Rationale**: This reflects the implemented interface and captures the security posture intended for real local-cluster usage.
+
 ## Open Items
 
-- Decide the exact commitment construction shared between Rust and Noir, likely Poseidon-based.
-- Decide the concrete proof artifact format and verification flow for coordination messages.
 - Decide whether non-winning providers emit explicit no-objection attestations in v1.
-- Decide whether the provider key order is static config order, lexical pubkey order, or another canonical public ordering.
-- Decide the initial capability representation in code: enum, bitflags, or field-friendly bitmask shared with Noir.
 - Decide how much of future attributes like latency, storage, PIR, and richer service qualities should appear in the first schema versus a later schema revision.
-- Decide the exact run artifact layout for saved coordination logs and verifier reports.
 
 ## Out of Scope
 
