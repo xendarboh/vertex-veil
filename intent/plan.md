@@ -214,39 +214,6 @@ Implement the Noir circuits and Rust integration boundaries required for agents 
 cd circuits && nargo compile --workspace && nargo test --workspace && cd .. && cargo test -p vertex-veil-core -- proofs noir_bridge predicate_parity
 ```
 
-> Implementation notes (surfaced 2026-04-20):
->
-> - **Noir commands run from `circuits/`.** The gate command above enters the
->   Noir workspace explicitly because `vertex-veil/` itself does not contain a
->   `Nargo.toml`.
-> - **`nargo test` needs `--workspace`** to run tests in `shared`, `provider`,
->   and `requester`. The gate command above is corrected; the bare `nargo
->   test` form exercises only the `default-member` from
->   `circuits/Nargo.toml`.
-> - **`nargo compile --workspace` is required on a fresh checkout.** Rust-side
->   bridge and parity tests load compiled circuit JSON artifacts from
->   `circuits/target/`, which are generated and not checked into git.
-> - **Hash function chosen: blake2s.** Noir stdlib v1.0.0-beta.20 exposes
->   `sha256_compression` (the block primitive) but not a full `sha256`. To
->   keep parity tractable, both Rust commitments and Noir circuits use
->   blake2s-256 over a fixed-size padded preimage. The byte layout is
->   documented in `crates/vertex-veil-core/src/commitments.rs`. Phase 1
->   commitment hex values changed as a side effect; no Phase 1 test pinned a
->   specific hex, so Phase 1 still passes.
-> - **Default proof path: ACIR `execute`.** `cargo test -p vertex-veil-core`
->   runs the gate via `noir_rs::execute` which validates every circuit
->   constraint without requiring barretenberg or SRS download. Acceptance
->   criteria pass against this path.
-> - **Real UltraHonk path: `barretenberg` feature.** `cargo test -p
->   vertex-veil-noir --features barretenberg --test proofs_barretenberg
->   --release` runs full prove + verify against `crs.aztec.network`. Three
->   tests cover requester, provider, and wrong-round rejection at proof
->   generation time. Optional and not part of the default gate to avoid
->   network dependency in the baseline run.
-> - **Parity contract.** `PredicateDenial::tag()` strings are pinned by
->   `predicate_parity_codes_are_stable_strings`. Any future Noir-emitted
->   denial codes must use the same strings.
-
 ### Acceptance Criteria
 
 - [x] All 6 test categories pass
@@ -319,50 +286,6 @@ Build the CLI agents and Vertex-backed runtime that publish commitments, derive 
 ```bash
 cd circuits && nargo compile --workspace && cd .. && cargo test -p vertex-veil-core -- verifier runtime_log adversarial && cargo run -p vertex-veil-agents -- demo --topology fixtures/topology-4node.toml --private-intents fixtures/topology-4node.private.toml --scenario fixtures/replay-doublecommit-drop.toml --artifacts artifacts/phase3 && cargo run -p vertex-veil-agents -- verify --artifacts artifacts/phase3
 ```
-
-> Implementation notes (surfaced 2026-04-21):
->
-> - **Default `--private-intents` lookup.** If the `demo` CLI is invoked
->   without `--private-intents`, the runner looks for a sibling
->   `<topology-stem>.private.toml` next to the topology file. The gate
->   command above passes the flag explicitly so it survives a future
->   rename of the fixture. The repo ships
->   `fixtures/topology-4node.private.toml` for the 4-node baseline.
-> - **Transport: `OrderedBus` default, real Vertex as Phase 4 hardening.**
->   The runtime is parameterized over a `CoordinationTransport` trait
->   whose single contract is consensus-ordered broadcast — exactly what
->   `tashi-vertex::Engine` provides. The Phase 3 demo binary runs all
->   four agents in a single process over an in-memory `OrderedBus` that
->   preserves FIFO order across broadcasters, which is behaviorally
->   equivalent to Vertex ordering for a single-process run. Swapping in a
->   `VertexTransport` that wraps `Engine::send_transaction` /
->   `Engine::recv_message` is a drop-in transport swap; no protocol
->   logic changes. That upgrade is scheduled for Phase 4's "Reproducible
->   BFT Baseline" and is deferred here to avoid a network-dependent
->   default gate.
-> - **Proof artifact format.** Each `ProofArtifactRecord` carries a
->   canonical 73-byte public-inputs payload (`round`, `node_id`,
->   `commitment_hash`, role byte) hex-encoded. The `proof_hex` begins with
->   a marker byte (`1` = ACIR-execute-validated, `2` = UltraHonk; full
->   UltraHonk bytes land when the `barretenberg` feature is enabled).
->   The verifier decodes this layout directly and matches the embedded
->   commitment hash against the logged commitment — tampering with any
->   field breaks that equality check.
-> - **Completion receipt signature.** The runtime emits a deterministic
->   blake2s-256 tag over `(domain, provider, round, capability)` as the
->   receipt signature. The verifier recomputes the same tag and rejects
->   mismatches. Real ed25519 signing is a Phase 4 hardening step; the
->   shape is already in place.
-> - **`CoordinationLog` gained three public fields (serde-default):**
->   `rejections`, `final_round`, and `finalized`. Old v1 logs that predate
->   these fields still deserialize; the defaults are empty / zero /
->   `false` so back-compat stays silent.
-> - **Private-intent fixture file format.** Demo runs need private witness
->   material per node. The binary loads it from a separate TOML file
->   (`*.private.toml`) cross-validated against the topology (role match,
->   capability match, every topology node present). Values are never
->   echoed in errors — a malformed file surfaces the field name, not the
->   value.
 
 ### Acceptance Criteria
 
@@ -440,50 +363,6 @@ cd circuits && nargo compile --workspace && nargo test --workspace && cd .. && c
 - [x] Invalid-proof, replay, and double-commit rejection are demonstrated end-to-end
 - [x] Final artifact bundle is verifier-backed, publicly inspectable, and sufficient for third-party verification from public inputs alone
 - [x] E2E Gate passes
-
-> Implementation notes (surfaced 2026-04-21):
->
-> - **Ed25519 completion-receipt signatures.** Each topology node carries
->   an optional `signing_public_key` (32-byte curve point, hex); the
->   private-intent fixture carries the matching `signing_secret_key`
->   (32-byte seed, hex) inside a `Secret<SigningSecretSeed>`. The runtime
->   signs receipts with ed25519-dalek; the verifier checks with the
->   configured public key. Phase 3 fixtures that omit both fields still
->   verify via the legacy deterministic blake2s tag, so back-compat stays
->   silent for existing logs.
-> - **Artifact bundle layout (Phase 4 public):**
->   `coordination_log.json`, `verifier_report.json`, `run_status.json`,
->   `completion_receipt.json`, `bundle_README.md`, `topology.toml`,
->   `scenario.toml` (when supplied). `run_status.json` surfaces
->   `finalized`, `final_round`, `receipt_present`, `abort_reason`,
->   `rejection_count`, and the full `bundle_files` manifest in a single
->   public artifact.
-> - **Abort handling.** When `max_rounds` is exhausted without
->   finalization the runtime sets `CoordinationLog.abort_reason =
->   "max_rounds_exceeded"`. The bundle is still written, the verifier
->   re-confirms structural coherence, and the demo binary exits with
->   code 2 so CI / scripts can distinguish abort from happy path without
->   parsing artifacts.
-> - **Directory versioning.** By default the demo rotates any existing
->   bundle to `<artifacts>.prev-<N>` (monotonic N) via a whole-dir
->   rename, preserving every file — including unrelated files a judge
->   dropped in — intact. `--force` overwrites in place but still only
->   touches files from the writer's manifest.
-> - **Real tashi-vertex transport behind a feature flag.** A
->   `VertexTransport: CoordinationTransport` lives in
->   `crates/vertex-veil-agents/src/vertex_transport.rs` gated by the
->   `vertex-transport` cargo feature, which pulls in `tashi-vertex`
->   (git dep) + `tokio` + `anyhow`. The default build and the E2E Gate
->   stay network-free and deterministic; `cargo check -p
->   vertex-veil-agents --features vertex-transport` validates that the
->   Vertex-backed path compiles. Protocol logic is transport-agnostic,
->   so swapping `OrderedBus` for `VertexTransport` requires no change
->   to `vertex-veil-core`.
-> - **Private-intent parse-error redaction.** The loader already stripped
->   TOML pipe-prefixed source echoes; Phase 4 also blanks any
->   `"..."`-quoted substring from the residual diagnostic so the TOML
->   "invalid type: string \"SECRET\"" path cannot leak the offending
->   value.
 
 ---
 
@@ -563,41 +442,6 @@ The Phase 4 in-process gate (network-free, deterministic) remains the default CI
 - [x] Top-level `README.md` explains the system, presents both the Vertex-backed and deterministic local workflows, and documents verifier-backed artifacts.
 - [x] Phase 4 E2E Gate still passes unchanged.
 - [x] Phase 5 BFT E2E Gate is documented as an opt-in Vertex-backed baseline.
-
-> Implementation notes (surfaced 2026-04-21):
->
-> - **Deterministic local path remains first-class.** The same
->   `CoordinationTransport` abstraction (`OrderedBus` for in-process,
->   `VertexTransport` for real BFT) drives a single protocol loop. The
->   deterministic in-process path mirrors Vertex ordering and exercises every
->   protocol milestone: commitments, proposal, fallback rotation, ZK proof
->   verification, visible adversarial rejection, and ed25519-signed
->   completion receipt.
-> - **Real-Vertex substrate path is feature-gated, built, and
->   CLI-ready.** `cargo build -p vertex-veil-agents --features
->   vertex-transport` succeeds. `node --help` and `demo-bft --help` both
->   expose the full flag surface. `VertexTransport` wraps a live
->   `tashi-vertex::Engine` on a dedicated tokio runtime with an inline
->   heartbeat pacer to keep the consensus engine producing events between
->   protocol phases. The orchestrator generates fresh Vertex keypairs per
->   run, spawns four children on loopback UDP ports (configurable via
->   `--base-port`), and threads per-child secrets through env vars so
->   they never land in argv.
-> - **Observability is a runtime concern, not a separate mode.**
->   `RuntimeObserver` on `CoordinationRuntime` remains the hook for surfaced
->   protocol milestones. The deterministic local path emits `[local]
->   [COORD]` / `[local] [VERTEX]` / `[local] [ABORT]`; the real Vertex-backed
->   node path emits per-node tags. This keeps local debugging and multi-node
->   observation aligned.
-> - **Runtime guards.** `broadcast_proposal` / `broadcast_proofs` /
->   `broadcast_receipt` now check `self.agents.contains_key(&X)` before
->   emitting, so a single-agent runtime (one process per node) only
->   speaks for its own identity. The in-process local path (all 4 agents in
->   `self.agents`) is unchanged in behavior because the contains check
->   always succeeds.
-> - **Deterministic local bundles stay reproducible.** `cargo test
->   --workspace` remains 224-green; `edge_artifact_packaging_deterministic`
->   and `edge_replay_doublecommit_reproducible` still pass.
 
 ---
 
