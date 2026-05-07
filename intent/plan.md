@@ -238,7 +238,7 @@ Build the CLI agents and Vertex-backed runtime that publish commitments, derive 
 
 - [x] Four configured agents start and exchange ordered coordination messages over Vertex
 - [x] Requester and selected provider complete one valid round and persist a coordination log
-- [x] Matched provider publishes signed completion receipt and requester acknowledgement
+- [x] Matched provider publishes signed completion receipt and the finalized public record is satisfied without a distinct persisted requester acknowledgement artifact
 - [x] Standalone verifier reads the saved coordination log and reports valid using public inputs only
 - [x] Runtime recovers to a valid fallback round after one proposal path fails
 
@@ -378,7 +378,7 @@ Complete the real `VertexTransport` path as the primary multi-process runtime fo
 
 - [x] `node` subcommand starts a single process bound to an address with a peer list and a `CoordinationTransport` backed by real Vertex consensus
 - [x] `demo-bft` orchestrator spawns four `node` children and drives them to finalized per-node bundles under the baseline scenario
-- [x] Per-node bundles (`<artifacts>/<node-id>/…`) each pass the existing `verify` subcommand with `valid=true`
+- [x] Per-node bundles (`<artifacts>/<node-alias>/…`) each pass the existing `verify` subcommand with `valid=true`
 - [x] Protocol-event tags (`[VERTEX]`, `[COORD]`, `[ABORT]`) appear in the real multi-process output and the deterministic local path
 - [x] Command exit codes distinguish finalized success, coherent abort, and runtime error paths
 

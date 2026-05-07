@@ -147,6 +147,7 @@
 - **Question**: How much of the execution phase should be represented in the public record?
 - **Decision**: Record a signed completion receipt from the matched provider plus requester acknowledgement.
 - **Rationale**: This is enough to make the full coordination loop auditable without prematurely expanding into full result-publication semantics.
+- **Status**: Superseded by Decision 25 after implementation sync narrowed the finalized `v1` public execution evidence.
 
 ### 25. Synced execution record contract
 
